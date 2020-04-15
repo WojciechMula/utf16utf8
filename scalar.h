@@ -32,7 +32,7 @@ void decode_utf16(const uint16_t* codepoints, size_t size, CONSUMER consumer, ER
         }
 
         const uint16_t W2 = *curr;
-        if (W2 < 0xdc00 || W2 > 0xdffff) { // W2 = 0xdc00 .. 0xdfff
+        if (W2 < 0xdc00 || W2 > 0xdfff) { // W2 = 0xdc00 .. 0xdfff
             error_handler(codepoints, curr);
         } else {
             const uint32_t lo = 0x3ff; // take lower 10 bits of W1 and W2
