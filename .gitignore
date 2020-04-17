@@ -1,1 +1,3 @@
 scalar_test
+*.o
+*.pyc

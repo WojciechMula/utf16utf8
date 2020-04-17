@@ -16,12 +16,12 @@ void decode_utf16(const uint16_t* codepoints, size_t size, CONSUMER consumer, ER
         const uint16_t W1 = *curr;
         curr += 1;
 
-        if (W1 < 0xd800 || W1 > 0xdfff) { // fast path, code point is equal to character value
+        if (W1 < 0xd800 || W1 > 0xdfff) { // fast path, code point is equal to character's value
             consumer(W1);
             continue;
         }
-        
-        if (W1 > 0xdbff) { // W1 = 0xd800 .. 0xdbff
+
+        if (W1 > 0xdbff) { // W1 must be in range 0xd800 .. 0xdbff
             error_handler(codepoints, curr);
             continue;
         }
