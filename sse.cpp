@@ -4,8 +4,20 @@
 
 #include "sse_lookup.cpp"
 
-void convert_utf16_to_utf8(const uint16_t* input, size_t size, uint8_t* output) {
-    const uint16_t* end = input + (size & 0x7); // round down size to 8
+namespace nonstd {
+
+    uint8_t _mm_movemask_epi16(const __m128i v) {
+        const __m128i t0 = _mm_and_si128(v, _mm_set1_epi16(0x00ff)); // reset higher bytes
+        const __m128i t1 = _mm_packus_epi16(t0, t0);
+
+        return _mm_movemask_epi8(t1);
+    }
+
+}
+
+size_t sse_convert_utf16_to_utf8(const uint16_t* input, size_t size, uint8_t* output) {
+    const uint16_t* end = input + (size & ~0x7); // round down size to 8
+    uint8_t* start = output;
     while (input != end) {
         const __m128i in = _mm_loadu_si128((__m128i*)input);
         input += 8;
@@ -18,10 +30,9 @@ void convert_utf16_to_utf8(const uint16_t* input, size_t size, uint8_t* output) 
             //    [0000|0000|0ccc|dddd] => [0ccc|dddd]
             // b. for value  0080 .. 8000 we have (two UTF16 bytes -> one UTF8 bytes
             //    [0000|0bbb|cccc|dddd] => [110b|bbcc|10cc|dddd]
-            const __m128i t0 = _mm_cmplt_epi16(in, _mm_set1_epi16(0x007f));
+            const __m128i t0 = _mm_cmplt_epi16(in, _mm_set1_epi16(0x0080));
 
-            // Note: this packs suggest we should process two SSE regs in a loop
-            uint16_t pattern = _mm_movemask_epi8(_mm_packus_epi16(t0, t0));
+            const uint8_t pattern = nonstd::_mm_movemask_epi16(t0);
 
             // [0000|0000|0ccc|dddd]
             const __m128i utf8_1byte = _mm_and_si128(in, _mm_set1_epi16(0x007f));
@@ -48,16 +59,17 @@ void convert_utf16_to_utf8(const uint16_t* input, size_t size, uint8_t* output) 
             // keep in 16-bits proper UTF8 variants
             const __m128i utf8_t0 = _mm_blendv_epi8(utf8_2bytes, utf8_1byte, t0);
 
-            // compress zeros from 1-byte
+            // compress zeros from 1-byte words
             const __m128i lookup = _mm_loadu_si128((const __m128i*)utf8_compress_lookup[pattern]);
             const __m128i utf8   = _mm_shuffle_epi8(utf8_t0, lookup);
 
-            _mm_store_si128((__m128i*)output, utf8);
+            _mm_storeu_si128((__m128i*)output, utf8);
             output += utf8_compress_length[pattern];
         } else {
-            // TODO
+            abort(); // TODO
         }
     }
 
     // process tail
+    return output - start;
 }

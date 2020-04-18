@@ -1,3 +1,7 @@
-scalar_test
 *.o
 *.pyc
+.gdb_history
+
+# our executables
+scalar_test
+unittest
