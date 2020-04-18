@@ -4,10 +4,15 @@
     Project license: Apache
 */
 
+#include <cstdint>
+#include <cstdint>
+#include <cstdlib>
+#include <cstring>
+
 
 // UTF-8
 
-int utf8_char_size(uint8_t *c)
+int utf8_char_size(const uint8_t *c)
 {
 	const uint8_t	m0x	= 0x80, c0x	= 0x00,
 	      		m10x	= 0xC0, c10x	= 0x80,
@@ -49,7 +54,7 @@ int codepoint_utf8_size(uint32_t c)
 	return 0;
 }
 
-uint32_t utf8_to_unicode32(uint8_t *c, int32_t *index)
+uint32_t utf8_to_unicode32(const uint8_t *c, size_t *index)
 {
 	uint32_t v;
 	int size;
@@ -154,11 +159,11 @@ int find_prev_utf8_char(uint8_t *str, int pos)
 	return pos;
 }
 
-int find_next_utf8_char(uint8_t *str, int pos)
+int find_next_utf8_char(uint8_t *str, size_t pos)
 {
 	int il;
 
-	if (pos < strlen(str))
+	if (pos < strlen((char*)str))
 	{
 		il = utf8_char_size(&str[pos]);
 		if (il==-1 || il==0)	// corrupt letter or non-first byte
@@ -180,7 +185,7 @@ size_t strlen_utf16(const uint16_t *str)
 			return i;
 }
 
-int utf16_char_size(uint16_t *c)
+int utf16_char_size(const uint16_t *c)
 {
 	if (c[0] <= 0xD7FF || c[0] >= 0xE000)
 		return 1;
@@ -198,7 +203,7 @@ int codepoint_utf16_size(uint32_t c)
 	return 0;
 }
 
-uint32_t utf16_to_unicode32(uint16_t *c, int32_t *index)
+uint32_t utf16_to_unicode32(const uint16_t *c, size_t *index)
 {
 	uint32_t v;
 	int size;
@@ -286,14 +291,15 @@ size_t strlen_utf16_to_utf8(const uint16_t *str)
 
 uint16_t *utf8_to_utf16(const uint8_t *utf8, uint16_t *utf16)
 {
-	int i, j;
+	int j;
 	uint32_t c;
+    size_t i;
 
 	if (utf8==NULL)
 		return NULL;
 
 	if (utf16==NULL)
-		utf16 = calloc(strlen_utf8_to_utf16(utf8) + 1, sizeof(uint16_t));
+		utf16 = (uint16_t*)calloc(strlen_utf8_to_utf16(utf8) + 1, sizeof(uint16_t));
 
 	for (i=0, j=0, c=1; c; i++)
 	{
@@ -314,7 +320,7 @@ uint8_t *utf16_to_utf8(const uint16_t *utf16, uint8_t *utf8)
 		return NULL;
 
 	if (utf8==NULL)
-		utf8 = calloc(strlen_utf16_to_utf8(utf16) + 1, sizeof(uint8_t));
+		utf8 = (uint8_t*)calloc(strlen_utf16_to_utf8(utf16) + 1, sizeof(uint8_t));
 
 	for (i=0, j=0, c=1; c; i++)
 	{
