@@ -57,7 +57,7 @@ size_t sse_convert_utf16_to_utf8(const uint16_t* input, size_t size, uint8_t* ou
             const uint8_t pattern = (patterns | (patterns >> 7));
 
             // [0000|0000|0ccc|dddd]
-            const __m128i utf8_1byte = _mm_and_si128(in, _mm_set1_epi16(0x007f));
+            const __m128i utf8_1byte = in;
 
             __m128i byte0;
             __m128i byte1;
