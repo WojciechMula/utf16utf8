@@ -104,13 +104,13 @@ size_t sse_convert_utf16_to_utf8(const uint16_t* input, size_t size, uint8_t* ou
             __m128i word0_2;
                                                                         // [0000|0bbb|cccc|dddd]
             byte0_2 = _mm_and_si128(in, _mm_set1_epi16(0x003f));        // [0000|0000|00cc|dddd]
-            byte0_2 = _mm_or_si128(byte0_2, _mm_set1_epi16(0x0080));    // [0000|0000|10cc|dddd]
 
             byte1_2 = _mm_and_si128(in, _mm_set1_epi16(0x07c0));        // [0000|0bbb|cc00|0000]
-            byte1_2 = _mm_or_si128(byte1_2, _mm_set1_epi16(0x3000));    // [0011|0bbb|cc00|0000]
-            byte1_2 = _mm_slli_epi32(byte1_2, 2);                       // [110b|bbcc|0000|0000]
+            byte1_2 = _mm_slli_epi32(byte1_2, 2);                       // [000b|bbcc|0000|0000]
 
-            word0_2 = _mm_or_si128(byte0_2, byte1_2);                   // [110b|bbcc|10cc|dddd]
+            const __m128i t0 = _mm_set1_epi16((int16_t)0xc080);
+            word0_2 = _mm_or_si128(byte0_2, byte1_2);                   // [000b|bbcc|00cc|dddd]
+            word0_2 = _mm_or_si128(word0_2, t0);                        // [110b|bbcc|10cc|dddd]
 
             // b. build 3 byte codes
             __m128i byte0_3;
@@ -119,14 +119,15 @@ size_t sse_convert_utf16_to_utf8(const uint16_t* input, size_t size, uint8_t* ou
             __m128i word0_3;
             __m128i word1_3;
 
-            byte0_3 = byte0_2; // reuse from 2-byte case                // [0000|0000|10cc|dddd]
+            byte0_3 = byte0_2; // reuse from 2-byte case                // [0000|0000|00cc|dddd]
 
                                                                         // [aaaa|bbbb|cccc|dddd]
             byte1_3 = _mm_and_si128(in, _mm_set1_epi16(0x0fc0));        // [0000|bbbb|cc00|0000]
-            byte1_3 = _mm_or_si128(byte1_3, _mm_set1_epi16(0x2000));    // [0010|bbbb|cc00|0000]
-            byte1_3 = _mm_slli_epi32(byte1_3, 2);                       // [10bb|bbcc|0000|0000]
+            byte1_3 = _mm_slli_epi32(byte1_3, 2);                       // [00bb|bbcc|0000|0000]
 
-            word0_3 = _mm_or_si128(byte0_3, byte1_3);
+            const __m128i t1 = _mm_set1_epi16((int16_t)0x8080);
+            word0_3 = _mm_or_si128(byte0_3, byte1_3);                   // [00bb|bbcc|00cc|dddd]
+            word0_3 = _mm_or_si128(word0_3, t1);                        // [10bb|bbcc|10cc|dddd]
 
             byte2_3 = _mm_srli_epi16(in, 12);
             byte2_3 = _mm_or_si128(byte2_3, _mm_set1_epi16(0x00e0));    // [0000|0000|1110|aaaa]

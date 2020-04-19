@@ -85,7 +85,7 @@ bool validate_all() {
     input.resize(8 + 1);
 
     // Note: max is 0x7fff because the SSE implementation doesn't deal properly with signed values
-    for (uint16_t value=0x0080; value <= 0x07ff; value++) {
+    for (uint16_t value=1; value <= 0x07ff; value++) {
         if (value >= 0xd800 && value <= 0xdfff) // skip reserved values
             continue;
 
