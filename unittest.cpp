@@ -7,7 +7,14 @@
 #include <cassert>
 
 uint32_t random_unicode(uint32_t min, uint32_t max) {
-    return rand() % (max - min + 1) + min;
+    uint32_t value;
+    // RFC 2781: Values between 0xD800 and 0xDFFF are specifically reserved for
+    //           use with UTF-16, and don't have any characters assigned to them.
+    do {
+        value = rand() % (max - min + 1) + min;
+    } while (value >= 0xd800 && value <= 0xdfff);
+
+    return value;
 }
 
 std::vector<uint16_t> random_utf16(uint32_t min, uint32_t max, size_t count) {
@@ -42,8 +49,12 @@ bool compare_strings(const std::string& reference, const std::string& result) {
     return true;
 }
 
-int main() {
-    const auto UTF16 = random_utf16(0x0001, 0x07ff, 256);
+int main(int argc, char* argv[]) {
+    if (argc > 1) {
+        srand(atoi(argv[1]));
+    }
+
+    const auto UTF16 = random_utf16(0x0001, 0x7fff, 512);
     const size_t size = UTF16.size() - 1;
 
     // reference

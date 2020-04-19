@@ -31,8 +31,6 @@ def pshufb_const(pattern):
     return result
 
 
-
-
 def cpp_array_initializer(arr):
     return '{%s}' % (', '.join(map(str, arr)))
 
