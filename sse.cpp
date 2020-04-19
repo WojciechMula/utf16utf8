@@ -74,7 +74,7 @@ size_t sse_convert_utf16_to_utf8(const uint16_t* input, size_t size, uint8_t* ou
             utf8_2bytes = _mm_or_si128(word0, _mm_set1_epi16((int16_t)0xc080)); // [110b|bbcc|10cc|dddd]
 
             // keep in 16-bits proper UTF8 variants
-            const __m128i utf8_t0 = _mm_blendv_epi8(utf8_2bytes, utf8_1byte, t0);
+            const __m128i utf8_t0 = _mm_blendv_epi8(utf8_2bytes, utf8_1byte, lt0080);
 
             // compress zeros from 1-byte words
             const __m128i lookup = _mm_loadu_si128((const __m128i*)utf8_compress_lookup[pattern]);
