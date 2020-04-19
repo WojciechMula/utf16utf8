@@ -1,5 +1,6 @@
 #include <cstdint>
 #include <cstddef>
+#include <cstring>
 #include <immintrin.h>
 
 #include "sse_lookup.cpp"
@@ -7,14 +8,14 @@
 
 namespace nonstd {
 
-    uint8_t _mm_movemask_epi16(const __m128i v) {
+    static uint8_t _mm_movemask_epi16(const __m128i v) {
         const __m128i t0 = _mm_and_si128(v, _mm_set1_epi16(0x00ff)); // reset higher bytes
         const __m128i t1 = _mm_packus_epi16(t0, t0);
 
         return _mm_movemask_epi8(t1);
     }
 
-    __m128i _mm_or_si128(const __m128i v1, const __m128i v2, const __m128i v3) {
+    static __m128i _mm_or_si128(const __m128i v1, const __m128i v2, const __m128i v3) {
         return ::_mm_or_si128(v1, ::_mm_or_si128(v2, v3));
     }
 
@@ -40,39 +41,41 @@ size_t sse_convert_utf16_to_utf8(const uint16_t* input, size_t size, uint8_t* ou
         const __m128i t0 = _mm_blendv_epi8(lt0080, ge0800, _mm_set1_epi16((int16_t)0xff00));
         const uint16_t patterns = _mm_movemask_epi8(t0);
  
-        if ((patterns & 0xaaaa) == 0x0000) { // condition: not (in >= 0x08000)
-            // 1. Fast path: values are in range 0x0000 ... 0x0800
-            //    UTF16 codeword is valid and is expanded to either 1 or 2 bytes of UTF8
+        if (patterns == 0x5555) {
+            // Fast path: only ASCII values
+
+            // [0000|0000|0ccc|dddd] => [0ccc|dddd]
+            const __m128i t0 = _mm_packus_epi16(in, in);
+            uint64_t tmp = _mm_cvtsi128_si64(t0);
+            memcpy(output, &tmp, 8);
+            output += 8;
+        }
+        else if ((patterns & 0xaaaa) == 0x0000) { // condition: not (in >= 0x08000)
+            // Fast path: values are in range 0x0000 ... 0x0800
+            // UTF16 codeword is valid and is expanded to either 1 or 2 bytes of UTF8
 
             // a. for values 00 .. 7f we have transformation (two UTF16 bytes -> one UTF8 byte):
             //    [0000|0000|0ccc|dddd] => [0ccc|dddd]
             // b. for value  0080 .. 8000 we have (two UTF16 bytes -> one UTF8 bytes
             //    [0000|0bbb|cccc|dddd] => [110b|bbcc|10cc|dddd]
-            const __m128i t0 = _mm_cmplt_epi16(in, _mm_set1_epi16(0x0080));
-
-            const uint8_t pattern = nonstd::_mm_movemask_epi16(t0);
+            const uint8_t pattern = nonstd::_mm_movemask_epi16(lt0080);
 
             // [0000|0000|0ccc|dddd]
             const __m128i utf8_1byte = _mm_and_si128(in, _mm_set1_epi16(0x007f));
 
             __m128i byte0;
             __m128i byte1;
+            __m128i word0;
 
-            // byte0 = [0000|0000|00cc|dddd]
-            byte0 = _mm_and_si128(in, _mm_set1_epi16(0x003f));
+            byte0 = _mm_and_si128(in, _mm_set1_epi16(0x003f));                  // [0000|0000|00cc|dddd]
+            byte1 = _mm_slli_epi16(in, 2);                                      // [000b|bbcc|xxxx|xxxx]
+            byte1 = _mm_and_si128(byte1, _mm_set1_epi16((int16_t)0x1f00));      // [000b|bbcc|0000|0000]
 
-            // byte1 = [000b|bbcc|xxxx|xxxx]
-            byte1 = _mm_srli_epi16(in, 2);
-            // byte1 = [000b|bbcc|0000|0000]
-            byte1 = _mm_and_si128(byte1, _mm_set1_epi16((int16_t)0xff00));
+            word0 = _mm_or_si128(byte0, byte1);                                 // [000b|bbcc|00cc|dddd]
 
             // update UTF8 markers:
-            // byte0 = [0000|0000|10cc|dddd]
-            byte0 = _mm_or_si128(byte0, _mm_set1_epi16(0x0080));
-            // byte1 = [110b|bbcc|0000|0000]
-            byte1 = _mm_or_si128(byte1, _mm_set1_epi16((int16_t)0xc000));
-
-            const __m128i utf8_2bytes = _mm_or_si128(byte0, byte1);
+            __m128i utf8_2bytes;
+            utf8_2bytes = _mm_or_si128(word0, _mm_set1_epi16((int16_t)0xc080)); // [110b|bbcc|10cc|dddd]
 
             // keep in 16-bits proper UTF8 variants
             const __m128i utf8_t0 = _mm_blendv_epi8(utf8_2bytes, utf8_1byte, t0);

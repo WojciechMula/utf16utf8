@@ -22,8 +22,8 @@ def pshufb_const(pattern):
         if pattern & (1 << bit):
             result.append(byte0_index)
         else:
-            result.append(byte0_index)
             result.append(byte1_index)
+            result.append(byte0_index)
 
     while len(result) != 16:
         result.append(-1)
