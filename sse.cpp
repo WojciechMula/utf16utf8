@@ -4,7 +4,6 @@
 
 #include "sse_lookup.cpp"
 #include "sse_dword_lookup.cpp"
-#include "1.h"
 
 namespace nonstd {
 
@@ -118,21 +117,21 @@ size_t sse_convert_utf16_to_utf8(const uint16_t* input, size_t size, uint8_t* ou
             word1_3 = byte2_3;
 
             // 2. determine how many bytes each 16-bit value produces
-            //      1 byte  =     (in < 0x0080) and not (in < 0x8000)
-            //      2 bytes = not (in < 0x0080) and     (in < 0x8000)
-            //      3 bytes = not (in < 0x0080) and not (in < 0x8000)
+            //      1 byte  =     (in < 0x0080)
+            //      2 bytes = not (in < 0x0080) and not (in >= 0x8000)
+            //      3 bytes =                           (in >= 0x8000)
             __m128i lt0080 = _mm_cmplt_epi16(in, _mm_set1_epi16(0x0080));
-            __m128i lt0800 = _mm_cmplt_epi16(in, _mm_set1_epi16(0x0800));
+            __m128i ge0800 = _mm_cmplt_epi16(_mm_set1_epi16(0x07ff), in);
 
-            const __m128i m1 = _mm_andnot_si128(lt0800, lt0080);
+            const __m128i m1 = lt0080;
             word0_1 = _mm_and_si128(m1, word0_1);
 
-            const __m128i m2 = _mm_andnot_si128(lt0080, lt0800);
-            word0_2 = _mm_and_si128(m2, word0_2);
+            const __m128i not_m2 = _mm_or_si128(lt0080, ge0800);
+            word0_2 = _mm_andnot_si128(not_m2, word0_2);
 
-            const __m128i not_m3 = _mm_or_si128(lt0080, lt0800);
-            word0_3 = _mm_andnot_si128(not_m3, word0_3);
-            word1_3 = _mm_andnot_si128(not_m3, word1_3);
+            const __m128i m3 = ge0800;
+            word0_3 = _mm_and_si128(m3, word0_3);
+            word1_3 = _mm_and_si128(m3, word1_3);
 
             // 3. expand 2-byte codes into 4-byte codes, we have dwords:
             //    - [0000|0000|0000|0000|0000|0000|0ccc|dddd]
@@ -149,7 +148,7 @@ size_t sse_convert_utf16_to_utf8(const uint16_t* input, size_t size, uint8_t* ou
 
             // 4. compress bytes
             // a. store lt0080 and lt0800 as bitmask, interleaving bits from both vectors
-            const __m128i t0 = _mm_blendv_epi8(lt0080, lt0800, _mm_set1_epi16((int16_t)0xff00));
+            const __m128i t0 = _mm_blendv_epi8(lt0080, ge0800, _mm_set1_epi16((int16_t)0xff00));
             const uint16_t patterns = _mm_movemask_epi8(t0);
 
             // b. compress lo dwords

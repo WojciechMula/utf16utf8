@@ -22,7 +22,7 @@ std::vector<uint16_t> random_utf16(uint32_t min, uint32_t max, size_t count) {
     result.reserve(count);
     for (size_t i=0; i < count; i++) {
         const uint32_t unicode = random_unicode(min, max);
-        result.push_back(unicode); // TODO
+        result.push_back(unicode);
     }
 
     result.push_back(0); // EOS for scalar code
@@ -97,7 +97,7 @@ int main(int argc, char* argv[]) {
         srand(atoi(argv[1]));
     }
 
-    if (validate_all()) {
+    if (validate_sample()) {
         puts("All OK");
         return EXIT_SUCCESS;
     } else
