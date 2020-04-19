@@ -26,11 +26,24 @@ size_t sse_convert_utf16_to_utf8(const uint16_t* input, size_t size, uint8_t* ou
     while (input != end) {
         const __m128i in = _mm_loadu_si128((__m128i*)input);
         input += 8;
+
+        // TODO: surrogates are not handled yet
+
+        // 0. determine how many bytes each 16-bit value produces
+        //      1 byte  =     (in < 0x0080)
+        //      2 bytes = not (in < 0x0080) and not (in >= 0x0800)
+        //      3 bytes =                           (in >= 0x0800)
+        const __m128i lt0080 = _mm_cmplt_epi16(in, _mm_set1_epi16(0x0080));
+        const __m128i ge0800 = _mm_cmplt_epi16(_mm_set1_epi16(0x07ff), in);
+
+        // a. store lt0080 and lt0800 as bitmask, interleaving bits from both vectors
+        const __m128i t0 = _mm_blendv_epi8(lt0080, ge0800, _mm_set1_epi16((int16_t)0xff00));
+        const uint16_t patterns = _mm_movemask_epi8(t0);
  
-        // 1. Fast path: values are in range 0x0000 ... 0x0800
-        //    UTF16 codeword is valid and is expanded to either 1 or 2 bytes of UTF8
-        const bool fast_path = false; // pretend for now...
-        if (fast_path) {
+        if ((patterns & 0xaaaa) == 0x0000) { // condition: not (in >= 0x08000)
+            // 1. Fast path: values are in range 0x0000 ... 0x0800
+            //    UTF16 codeword is valid and is expanded to either 1 or 2 bytes of UTF8
+
             // a. for values 00 .. 7f we have transformation (two UTF16 bytes -> one UTF8 byte):
             //    [0000|0000|0ccc|dddd] => [0ccc|dddd]
             // b. for value  0080 .. 8000 we have (two UTF16 bytes -> one UTF8 bytes
@@ -71,7 +84,7 @@ size_t sse_convert_utf16_to_utf8(const uint16_t* input, size_t size, uint8_t* ou
             _mm_storeu_si128((__m128i*)output, utf8);
             output += utf8_compress_length[pattern];
         } else {
-            // input in range 0x0000 .. 0xffff (excluding surrogates)
+            // input in range 0x0000 .. 0xffff
 
             // 1. prepare UTF8 bytes
 
@@ -116,24 +129,15 @@ size_t sse_convert_utf16_to_utf8(const uint16_t* input, size_t size, uint8_t* ou
             byte2_3 = _mm_or_si128(byte2_3, _mm_set1_epi16(0x00e0));    // [0000|0000|1110|aaaa]
             word1_3 = byte2_3;
 
-            // 2. determine how many bytes each 16-bit value produces
-            //      1 byte  =     (in < 0x0080)
-            //      2 bytes = not (in < 0x0080) and not (in >= 0x8000)
-            //      3 bytes =                           (in >= 0x8000)
-            __m128i lt0080 = _mm_cmplt_epi16(in, _mm_set1_epi16(0x0080));
-            __m128i ge0800 = _mm_cmplt_epi16(_mm_set1_epi16(0x07ff), in);
-
-            const __m128i m1 = lt0080;
-            word0_1 = _mm_and_si128(m1, word0_1);
+            word0_1 = _mm_and_si128(lt0080, word0_1);
 
             const __m128i not_m2 = _mm_or_si128(lt0080, ge0800);
             word0_2 = _mm_andnot_si128(not_m2, word0_2);
 
-            const __m128i m3 = ge0800;
-            word0_3 = _mm_and_si128(m3, word0_3);
-            word1_3 = _mm_and_si128(m3, word1_3);
+            word0_3 = _mm_and_si128(ge0800, word0_3);
+            word1_3 = _mm_and_si128(ge0800, word1_3);
 
-            // 3. expand 2-byte codes into 4-byte codes, we have dwords:
+            // 2. expand 2-byte codes into 4-byte codes, possible dwords:
             //    - [0000|0000|0000|0000|0000|0000|0ccc|dddd]
             //    - [0000|0000|0000|0000|110b|bbcc|10cc|dddd]
             //    - [0000|0000|1110|aaaa|10bb|bbcc|10cc|dddd]
@@ -146,12 +150,8 @@ size_t sse_convert_utf16_to_utf8(const uint16_t* input, size_t size, uint8_t* ou
             __m128i dword_lo = _mm_unpacklo_epi16(word0, word1);
             __m128i dword_hi = _mm_unpackhi_epi16(word0, word1);
 
-            // 4. compress bytes
-            // a. store lt0080 and lt0800 as bitmask, interleaving bits from both vectors
-            const __m128i t0 = _mm_blendv_epi8(lt0080, ge0800, _mm_set1_epi16((int16_t)0xff00));
-            const uint16_t patterns = _mm_movemask_epi8(t0);
-
-            // b. compress lo dwords
+            // 3. compress bytes
+            // a. compress lo dwords
             {
                 const uint8_t pattern = patterns & 0x00ff;
                 const __m128i lookup  = _mm_loadu_si128((const __m128i*)compress_dwords_utf8_lookup[pattern]);
@@ -161,7 +161,7 @@ size_t sse_convert_utf16_to_utf8(const uint16_t* input, size_t size, uint8_t* ou
                 output += compress_dwords_utf8_length[pattern];
             }
 
-            // c. compress hi dwords
+            // b. compress hi dwords
             {
                 const uint8_t pattern = patterns >> 8;
                 const __m128i lookup  = _mm_loadu_si128((const __m128i*)compress_dwords_utf8_lookup[pattern]);
