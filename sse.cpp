@@ -8,13 +8,6 @@
 
 namespace nonstd {
 
-    static uint8_t _mm_movemask_epi16(const __m128i v) {
-        const __m128i t0 = _mm_and_si128(v, _mm_set1_epi16(0x00ff)); // reset higher bytes
-        const __m128i t1 = _mm_packus_epi16(t0, t0);
-
-        return _mm_movemask_epi8(t1);
-    }
-
     static __m128i _mm_or_si128(const __m128i v1, const __m128i v2, const __m128i v3) {
         return ::_mm_or_si128(v1, ::_mm_or_si128(v2, v3));
     }
@@ -58,7 +51,10 @@ size_t sse_convert_utf16_to_utf8(const uint16_t* input, size_t size, uint8_t* ou
             //    [0000|0000|0ccc|dddd] => [0ccc|dddd]
             // b. for value  0080 .. 8000 we have (two UTF16 bytes -> one UTF8 bytes
             //    [0000|0bbb|cccc|dddd] => [110b|bbcc|10cc|dddd]
-            const uint8_t pattern = nonstd::_mm_movemask_epi16(lt0080);
+
+            // patterns = [0g0h|0i0j|0k0l|0m0n]
+            // pattern  =           [gkhl|imjn]
+            const uint8_t pattern = (patterns | (patterns >> 7));
 
             // [0000|0000|0ccc|dddd]
             const __m128i utf8_1byte = _mm_and_si128(in, _mm_set1_epi16(0x007f));

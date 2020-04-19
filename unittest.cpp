@@ -60,13 +60,13 @@ bool compare_strings(const std::string& reference, const std::string& result) {
 bool validate(const std::vector<uint16_t>& input, size_t size) {
     // reference
     std::string tmp;
-    tmp.reserve(4 * size);
+    tmp.resize(4 * size);
     utf16_to_utf8(input.data(), (uint8_t*)tmp.data());
     const std::string reference{tmp.c_str()};
 
     // SSE
     tmp.assign("");
-    tmp.reserve(4 * size);
+    tmp.resize(4 * size);
     const size_t output_size = sse_convert_utf16_to_utf8(input.data(), size, (uint8_t*)tmp.data());
     const std::string sse{tmp.data(), output_size};
 
@@ -74,13 +74,15 @@ bool validate(const std::vector<uint16_t>& input, size_t size) {
 }
 
 bool validate_sample() {
-    const auto UTF16 = random_utf16(0x0001, 0x7fff, 512);
+    puts("Test transcoding random string (without surrogates)");
+    const auto UTF16 = random_utf16(0x0001, 0x7ff, 512);
     const size_t size = UTF16.size() - 1;
 
     return validate(UTF16, size);
 }
 
 bool validate_all() {
+    puts("Validate all input values");
     std::vector<uint16_t> input;
     input.resize(8 + 1);
 
@@ -106,9 +108,12 @@ int main(int argc, char* argv[]) {
         srand(atoi(argv[1]));
     }
 
-    if (validate_all()) {
-        puts("All OK");
-        return EXIT_SUCCESS;
-    } else
+    if (!validate_all())
         return EXIT_FAILURE;
+
+    if (!validate_sample())
+        return EXIT_FAILURE;
+
+    puts("All OK");
+    return EXIT_SUCCESS;
 }

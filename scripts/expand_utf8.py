@@ -13,17 +13,20 @@ def fill(text):
 # input: 8-bit entity (1 means single UTF8 byte, 0 means two UTF8 bytes)
 def pshufb_const(pattern):
     assert 0x00 << pattern <= 0xff
-    result = []
+    tmp = {}
 
-    for bit in range(8):
-        byte0_index = 2*bit
-        byte1_index = 2*bit + 1
+    for bit, index in enumerate([0, 4, 1, 5, 2, 6, 3, 7]):
+        byte0_index = 2*index
+        byte1_index = 2*index + 1
 
         if pattern & (1 << bit):
-            result.append(byte0_index)
+            tmp[index] = [byte0_index]
         else:
-            result.append(byte1_index)
-            result.append(byte0_index)
+            tmp[index] = [byte1_index, byte0_index]
+
+    result = []
+    for index in range(8):
+        result.extend(tmp[index])
 
     while len(result) != 16:
         result.append(-1)
