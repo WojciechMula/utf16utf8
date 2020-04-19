@@ -45,7 +45,50 @@ bool compare_strings(const std::string& reference, const std::string& result) {
         return false;
     }
 
-    puts("OK");
+    return true;
+}
+
+bool validate(const std::vector<uint16_t>& input, size_t size) {
+    // reference
+    std::string tmp;
+    tmp.reserve(4 * size);
+    utf16_to_utf8(input.data(), (uint8_t*)tmp.data());
+    const std::string reference{tmp.c_str()};
+
+    // SSE
+    tmp.assign("");
+    tmp.reserve(4 * size);
+    const size_t output_size = sse_convert_utf16_to_utf8(input.data(), size, (uint8_t*)tmp.data());
+    const std::string sse{tmp.data(), output_size};
+
+    return compare_strings(reference, sse);
+}
+
+bool validate_sample() {
+    const auto UTF16 = random_utf16(0x0001, 0x7fff, 512);
+    const size_t size = UTF16.size() - 1;
+
+    return validate(UTF16, size);
+}
+
+bool validate_all() {
+    std::vector<uint16_t> input;
+    input.resize(8 + 1);
+
+    // Note: max is 0x7fff because the SSE implementation doesn't deal properly with signed values
+    for (uint16_t value=1; value <= 0x7fff; value++) {
+        if (value >= 0xd800 && value <= 0xdfff) // skip reserved values
+            continue;
+
+        for (int i=0; i < 8; i++)
+            input[i] = value;
+
+        if (!validate(input, 8)) {
+            printf("Failed for %04x\n", value);
+            return false;
+        }
+    }
+
     return true;
 }
 
@@ -54,20 +97,9 @@ int main(int argc, char* argv[]) {
         srand(atoi(argv[1]));
     }
 
-    const auto UTF16 = random_utf16(0x0001, 0x7fff, 512);
-    const size_t size = UTF16.size() - 1;
-
-    // reference
-    std::string tmp;
-    tmp.reserve(4 * size);
-    utf16_to_utf8(UTF16.data(), (uint8_t*)tmp.data());
-    const std::string reference{tmp.c_str()};
-
-    // SSE
-    tmp.assign("");
-    tmp.reserve(4 * size);
-    const size_t output_size = sse_convert_utf16_to_utf8(UTF16.data(), size, (uint8_t*)tmp.data());
-    const std::string sse{tmp.data(), output_size};
-
-    return compare_strings(reference, sse) ? 0 : 1;
+    if (validate_all()) {
+        puts("All OK");
+        return EXIT_SUCCESS;
+    } else
+        return EXIT_FAILURE;
 }
