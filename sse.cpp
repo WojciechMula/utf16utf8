@@ -27,7 +27,7 @@ size_t sse_convert_utf16_to_utf8(const uint16_t* input, size_t size, uint8_t* ou
         //      1 byte  =     (in < 0x0080)
         //      2 bytes = not (in < 0x0080) and not (in >= 0x0800)
         //      3 bytes =                           (in >= 0x0800)
-        const __m128i lt0080 = _mm_cmplt_epi16(in, _mm_set1_epi16(0x0080));
+        const __m128i lt0080 = _mm_cmplt_epi16(in, _mm_set1_epi16(0x0080)); // TODO: handle negative values
         const __m128i ge0800 = _mm_cmplt_epi16(_mm_set1_epi16(0x07ff), in);
 
         // a. store lt0080 and lt0800 as bitmask, interleaving bits from both vectors
@@ -49,7 +49,7 @@ size_t sse_convert_utf16_to_utf8(const uint16_t* input, size_t size, uint8_t* ou
 
             // a. for values 00 .. 7f we have transformation (two UTF16 bytes -> one UTF8 byte):
             //    [0000|0000|0ccc|dddd] => [0ccc|dddd]
-            // b. for value  0080 .. 8000 we have (two UTF16 bytes -> one UTF8 bytes
+            // b. for value  0080 .. 8000 we have (two UTF16 bytes -> two UTF8 bytes)
             //    [0000|0bbb|cccc|dddd] => [110b|bbcc|10cc|dddd]
 
             // patterns = [0g0h|0i0j|0k0l|0m0n]
