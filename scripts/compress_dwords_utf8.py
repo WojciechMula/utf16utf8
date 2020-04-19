@@ -5,7 +5,7 @@ from common import *
 # input: 8-bit entity consits 4 x 2-bit words
 #        bit 0: value < 0x0080
 #        bit 1: value < 0x0800
-def pshufb_const(pattern):
+def pshufb_const_aux(pattern):
     assert 0x00 << pattern <= 0xff
     result = []
 
@@ -15,8 +15,8 @@ def pshufb_const(pattern):
 
         byte_index = 4 * k
         if lt0080 and ge0800:
-            # not possible
-            pass
+            # never generate in code
+            return []
         elif lt0080:
             result.append(byte_index) # 1 byte
         elif not lt0080 and not ge0800:
@@ -26,7 +26,13 @@ def pshufb_const(pattern):
             result.append(byte_index + 2)  # 3 bytes
             result.append(byte_index + 1)
             result.append(byte_index)
-            
+
+    return result
+
+
+def pshufb_const(pattern):
+    result = pshufb_const_aux(pattern)
+
     while len(result) != 16:
         result.append(-1)
 

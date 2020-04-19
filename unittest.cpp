@@ -97,7 +97,7 @@ int main(int argc, char* argv[]) {
         srand(atoi(argv[1]));
     }
 
-    if (validate_sample()) {
+    if (validate_all()) {
         puts("All OK");
         return EXIT_SUCCESS;
     } else
