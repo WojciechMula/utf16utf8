@@ -3,6 +3,7 @@
 #include <cstring>
 #include <immintrin.h>
 
+#include "scalar.h"
 #include "sse_lookup.cpp"
 #include "sse_dword_lookup.cpp"
 
@@ -19,9 +20,41 @@ size_t sse_convert_utf16_to_utf8(const uint16_t* input, size_t size, uint8_t* ou
     uint8_t* start = output;
     while (input != end) {
         const __m128i in = _mm_loadu_si128((__m128i*)input);
-        input += 8;
 
-        // TODO: surrogates are not handled yet
+        // 0. test if there are any surrogates
+        const __m128i msn = _mm_and_si128(in, _mm_set1_epi16(int16_t(0xf800)));
+        const __m128i hi_surrogates = _mm_cmpeq_epi16(msn, _mm_set1_epi16(int16_t(0xd800))); // higher byte: 0b1101_10xx
+        const __m128i lo_surrogates = _mm_cmpeq_epi16(msn, _mm_set1_epi16(int16_t(0xdc00))); // higher byte: 0b1101_11xx
+        const __m128i any_surrogate = _mm_or_si128(lo_surrogates, hi_surrogates);
+        const uint16_t surrogates_mask = _mm_movemask_epi8(any_surrogate);
+        if (surrogates_mask) {
+            // for now only scalar fallback   
+            auto save_utf8 = [&output](uint32_t value) {
+                auto save_bytes = [&output](uint8_t byte) { *output = byte; };
+                output += encode_utf8(value, save_bytes);
+            };
+
+            bool malformed = false;
+            int consumed = 8;
+            auto on_error = [&consumed, &malformed](const uint16_t* data,
+                                                    const uint16_t* current,
+                                                    UTF16_Error error)
+            {
+                const auto error_pos = (current - data);
+                if (error == UTF16_Error::missing_low_surrogate and error_pos == 7)
+                    consumed = 7; // hi surrogate at the and of 8-byte block, would reprocess it again
+                else
+                    malformed = true;
+            };
+
+            decode_utf16(input, 8, save_utf8, on_error);
+            if (malformed)
+                return output - start;
+            else
+                input += consumed;
+        } else 
+            // if no surrogates: we for sure process whole register
+            input += 8;
 
         // 0. determine how many bytes each 16-bit value produces
         //      1 byte  =     (in < 0x0080)
