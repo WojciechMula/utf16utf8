@@ -135,14 +135,17 @@ size_t sse_convert_utf16_to_utf8(const uint16_t* input, size_t size, uint8_t* ou
             __m128i word0_1 = in;
 
             // a. build 2 byte codes
+            __m128i tmp;
             __m128i byte0_2;
             __m128i byte1_2;
             __m128i word0_2;
+
+
                                                                         // [0000|0bbb|cccc|dddd]
             byte0_2 = _mm_and_si128(in, _mm_set1_epi16(0x003f));        // [0000|0000|00cc|dddd]
 
-            byte1_2 = _mm_and_si128(in, _mm_set1_epi16(0x07c0));        // [0000|0bbb|cc00|0000]
-            byte1_2 = _mm_slli_epi32(byte1_2, 2);                       // [000b|bbcc|0000|0000]
+            tmp     = _mm_slli_epi32(in, 2);                            // [000b|bbcc|ccdd|dd00] // reused later
+            byte1_2 = _mm_and_si128(tmp, _mm_set1_epi16(0x1f00));       // [000b|bbcc|0000|0000]
 
             const __m128i t0 = _mm_set1_epi16((int16_t)0xc080);
             word0_2 = _mm_or_si128(byte0_2, byte1_2);                   // [000b|bbcc|00cc|dddd]
@@ -157,9 +160,7 @@ size_t sse_convert_utf16_to_utf8(const uint16_t* input, size_t size, uint8_t* ou
 
             byte0_3 = byte0_2; // reuse from 2-byte case                // [0000|0000|00cc|dddd]
 
-                                                                        // [aaaa|bbbb|cccc|dddd]
-            byte1_3 = _mm_and_si128(in, _mm_set1_epi16(0x0fc0));        // [0000|bbbb|cc00|0000]
-            byte1_3 = _mm_slli_epi32(byte1_3, 2);                       // [00bb|bbcc|0000|0000]
+            byte1_3 = _mm_and_si128(tmp, _mm_set1_epi16(0x3f00));       // [00bb|bbcc|0000|0000]
 
             const __m128i t1 = _mm_set1_epi16((int16_t)0x8080);
             word0_3 = _mm_or_si128(byte0_3, byte1_3);                   // [00bb|bbcc|00cc|dddd]
