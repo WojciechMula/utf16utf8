@@ -3,7 +3,8 @@
 #include <cstring>
 #include <immintrin.h>
 
-#include "scalar.h"
+#include "scalar_utf8.h"
+#include "scalar_utf16.h"
 #include "sse_lookup.cpp"
 #include "sse_dword_lookup.cpp"
 
@@ -38,16 +39,16 @@ size_t sse_convert_utf16_to_utf8(const uint16_t* input, size_t size, uint8_t* ou
             int consumed = 8;
             auto on_error = [&consumed, &malformed](const uint16_t* data,
                                                     const uint16_t* current,
-                                                    UTF16_Error error)
+                                                    utf16::Error error)
             {
                 const auto error_pos = (current - data);
-                if (error == UTF16_Error::missing_low_surrogate and error_pos == 7)
+                if (error == utf16::Error::missing_low_surrogate and error_pos == 7)
                     consumed = 7; // hi surrogate at the and of 8-byte block, would reprocess it again
                 else
                     malformed = true;
             };
 
-            decode_utf16(input, 8, save_utf8, on_error);
+            utf16::decode(input, 8, save_utf8, on_error);
             if (malformed)
                 return output - start;
             else
@@ -66,7 +67,7 @@ size_t sse_convert_utf16_to_utf8(const uint16_t* input, size_t size, uint8_t* ou
         const __m128i lt0080 = _mm_cmpeq_epi16(_mm_setzero_si128(),
                                                _mm_and_si128(in, _mm_set1_epi16((int16_t)0xff80)));
         const __m128i lt0800 = _mm_cmpeq_epi16(_mm_setzero_si128(),
-                                               _mm_and_si128(in, _mm_set1_epi16((int64_t)0xf800)));
+                                               _mm_and_si128(in, _mm_set1_epi16((int16_t)0xf800)));
 
         // a. store lt0080 and lt0800 as bitmask, interleaving bits from both vectors
         const __m128i t0 = _mm_blendv_epi8(lt0080, lt0800, _mm_set1_epi16((int16_t)0xff00));
