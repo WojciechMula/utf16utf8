@@ -5,8 +5,8 @@
 #include <cassert>
 
 #include "reference.cpp"
-#include "sse.cpp"
 
+#include "sse.h"
 #include "random_utf16.h"
 
 
