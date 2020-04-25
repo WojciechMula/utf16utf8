@@ -1,13 +1,6 @@
 #!/usr/bin/env python3
 
-import textwrap
-
-
-indent = ' ' * 4
-
-def fill(text):
-    tmp = textwrap.fill(text)
-    return textwrap.indent(tmp, indent)
+from common import *
 
 
 # input: 8-bit entity (1 means single UTF8 byte, 0 means two UTF8 bytes)
@@ -32,10 +25,6 @@ def pshufb_const(pattern):
         result.append(-1)
 
     return result
-
-
-def cpp_array_initializer(arr):
-    return '{%s}' % (', '.join(map(str, arr)))
 
 
 def expand_utf8():

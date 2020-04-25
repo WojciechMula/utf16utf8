@@ -5,8 +5,8 @@
 
 #include "scalar_utf8.h"
 #include "scalar_utf16.h"
-#include "sse_lookup.cpp"
-#include "sse_dword_lookup.cpp"
+#include "sse_16bit_lookup.cpp"
+#include "sse_32bit_lookup.cpp"
 
 namespace nonstd {
 
