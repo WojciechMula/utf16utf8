@@ -1,7 +1,12 @@
 FLAGS=-Wall -Wextra -Wpedantic -std=c++17 -O2 -Wfatal-errors -march=native $(CXXFLAGS)
 
+all: unittest benchmark
+
 unittest: unittest.cpp reference.cpp sse.o random_utf16.o scalar_utf16.o
 	$(CXX) $(FLAGS) random_utf16.o scalar_utf16.o sse.o unittest.cpp -o unittest
+
+benchmark: benchmark.h benchmark.cpp sse.o random_utf16.o scalar_utf16.o
+	$(CXX) $(FLAGS) random_utf16.o scalar_utf16.o sse.o benchmark.cpp -o benchmark
 
 random_utf16.o: random_utf16.h random_utf16.cpp scalar_utf16.o
 	$(CXX) $(FLAGS) scalar_utf16.o -c random_utf16.cpp 

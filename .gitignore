@@ -1,6 +1,8 @@
 *.o
 *.pyc
 .gdb_history
+perf.data
 
 # our executables
 unittest
+benchmark
