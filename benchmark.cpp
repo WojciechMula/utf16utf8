@@ -21,6 +21,7 @@ public:
         RandomUTF16 gen_1_2_3(rd, 1, 1, 1, 0);
         RandomUTF16 anylength (rd, 1, 1, 1, 1);
 
+        printf("\n");
         printf("Input size: %lu\n", size);
 
         puts("- Output ASCII characters");
