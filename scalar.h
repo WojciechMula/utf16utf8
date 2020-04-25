@@ -11,8 +11,9 @@ int encode_utf16(uint32_t value, uint16_t& W1, uint16_t& W2) {
         W1 = value;
         return 1;
     } else {
-        W1 = 0xd8000 | (value & 0x03ff);
-        W2 = 0xdc000 | ((value >> 10) & 0x03ff);
+        value -= 0x10000;
+        W1 = 0xd800 | ((value >> 10) & 0x03ff);
+        W2 = 0xdc00 | (value & 0x03ff);
         return 2;
     }
 }
@@ -54,11 +55,11 @@ void decode_utf16(const uint16_t* codepoints, size_t size, CONSUMER consumer, ER
         if (W2 < 0xdc00 || W2 > 0xdfff) { // W2 = 0xdc00 .. 0xdfff
             error_handler(codepoints, curr, UTF16_Error::low_surrogate_out_of_range);
         } else {
-            const uint32_t lo = 0x3ff; // take lower 10 bits of W1 and W2
-            const uint32_t hi = 0x3ff;
+            const uint32_t hi = W1 & 0x3ff; // take lower 10 bits of W1 and W2
+            const uint32_t lo = W2 & 0x3ff;
             const uint32_t tmp = lo | (hi << 10); // build a 20-bit temporary value U'
 
-            consumer(tmp - 0x10000);
+            consumer(tmp + 0x10000);
         }
 
         curr += 1;
@@ -74,23 +75,38 @@ int encode_utf8(uint32_t value, CONSUMER consumer) {
     }
 
     if (value < 0x00000800) {
-        consumer(0x80 | (value & 0x3f));
         consumer(0xc0 | (value >> 6));
+        consumer(0x80 | (value & 0x3f));
         return 2;
     }
 
     if (value < 0x00010000) {
-        consumer(0x80 | (value & 0x3f));
-        consumer(0x80 | ((value >> 6) & 0x3f));
         consumer(0xe0 | (value >> 12));
+        consumer(0x80 | ((value >> 6) & 0x3f));
+        consumer(0x80 | (value & 0x3f));
         return 3;
     }
 
     {
-        consumer(0x80 | (value & 0x3f));
-        consumer(0x80 | ((value >> 6) & 0x3f));
+        consumer(0xf0 | (value >> 18));
         consumer(0x80 | ((value >> 12) & 0x3f));
-        consumer(0xf0 | ((value >> 18) & 0x3f));
+        consumer(0x80 | ((value >> 6) & 0x3f));
+        consumer(0x80 | (value & 0x3f));
         return 4;
+    }
+}
+
+void test_utf16_encode_and_decode() {
+    uint16_t array[2];
+    for (uint32_t v = 0x10000; v <= 0x10ffff; v++) {
+        uint32_t decoded = 0;
+        const int n = encode_utf16(v, array[0], array[1]);
+
+        decode_utf16(array, n,
+            [&decoded](uint32_t v) { decoded = v; },
+            [](const uint16_t*, const uint16_t*, UTF16_Error) { puts("decoding error"); abort(); });
+
+        if (decoded != v)
+            printf("%06x != %06x\n", v, decoded);
     }
 }

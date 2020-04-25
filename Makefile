@@ -1,6 +1,6 @@
 FLAGS=-Wall -Wextra -Wpedantic -std=c++17 -O2 -Wfatal-errors -march=native $(CXXFLAGS)
 
-unittest: unittest.cpp reference.cpp sse.cpp sse_lookup.cpp sse_dword_lookup.cpp
+unittest: unittest.cpp reference.cpp sse.cpp sse_lookup.cpp sse_dword_lookup.cpp scalar.h
 	$(CXX) $(FLAGS) unittest.cpp -o unittest
 
 sse.o: sse.cpp sse_lookup.cpp sse_dword_lookup.cpp

@@ -30,8 +30,8 @@ size_t sse_convert_utf16_to_utf8(const uint16_t* input, size_t size, uint8_t* ou
         if (surrogates_mask) {
             // for now only scalar fallback   
             auto save_utf8 = [&output](uint32_t value) {
-                auto save_bytes = [&output](uint8_t byte) { *output = byte; };
-                output += encode_utf8(value, save_bytes);
+                auto save_bytes = [&output](uint8_t byte) { *output++ = byte; };
+                encode_utf8(value, save_bytes);
             };
 
             bool malformed = false;
@@ -52,9 +52,12 @@ size_t sse_convert_utf16_to_utf8(const uint16_t* input, size_t size, uint8_t* ou
                 return output - start;
             else
                 input += consumed;
-        } else 
-            // if no surrogates: we for sure process whole register
-            input += 8;
+
+            continue;
+        }
+
+        // if no surrogates: we for sure process whole register
+        input += 8;
 
         // 0. determine how many bytes each 16-bit value produces
         //      1 byte  =     (in < 0x0080)

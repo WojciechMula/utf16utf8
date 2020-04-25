@@ -1,11 +1,12 @@
-#include "reference.cpp"
-#include "sse.cpp"
-
 #include <string>
 #include <vector>
 #include <cstdlib>
+#include <cstdio>
 #include <cassert>
 #include <random>
+
+#include "reference.cpp"
+#include "sse.cpp"
 
 class RandomUTF16 final {
 public:
@@ -16,6 +17,7 @@ public:
                 int prob_4bytes);
 
     std::vector<uint16_t> generate(size_t size);
+    std::vector<uint16_t> generate(size_t size, long seed);
 private:
     uint32_t generate();
 
@@ -69,6 +71,11 @@ std::vector<uint16_t> RandomUTF16::generate(size_t count)
     return result;
 }
 
+std::vector<uint16_t> RandomUTF16::generate(size_t size, long seed) {
+    gen.seed(seed);
+    return generate(size);
+}
+
 void dump(const std::string& s) {
     for (size_t i=0; i < s.size(); i++)
         printf(" %02x", static_cast<uint8_t>(s[i]));
@@ -105,14 +112,14 @@ bool validate(const std::vector<uint16_t>& input, size_t size) {
 
     // SSE
     tmp.assign("");
-    tmp.resize(4 * size);
+    tmp.resize(8 * size);
     const size_t output_size = sse_convert_utf16_to_utf8(input.data(), size, (uint8_t*)tmp.data());
     const std::string sse{tmp.data(), output_size};
 
     return compare_strings(reference, sse);
 }
 
-bool validate_sample() {
+bool validate_no_surrogates() {
     puts("Test transcoding random string (without surrogates)");
     std::random_device rd{};
     RandomUTF16 generator(rd,
@@ -123,6 +130,23 @@ bool validate_sample() {
     );
 
     const auto UTF16 = generator.generate(512);
+    const size_t size = UTF16.size() - 1;
+
+    return validate(UTF16, size);
+}
+
+bool validate_surrogates() {
+    puts("Test transcoding random string (only surrogates)");
+    std::random_device rd{};
+    RandomUTF16 generator(rd,
+        /* 1 byte */  0,
+        /* 2 bytes */ 0,
+        /* 3 bytes */ 0,
+        /* 4 bytes */ 1
+    );
+
+    const long seed = 1;
+    const auto UTF16 = generator.generate(512, seed);
     const size_t size = UTF16.size() - 1;
 
     return validate(UTF16, size);
@@ -150,14 +174,13 @@ bool validate_all() {
 }
 
 int main(int argc, char* argv[]) {
-    if (argc > 1) {
-        srand(atoi(argv[1]));
-    }
-
-    if (false && !validate_all())
+    if (!validate_all())
         return EXIT_FAILURE;
 
-    if (!validate_sample())
+    if (!validate_no_surrogates())
+        return EXIT_FAILURE;
+
+    if (!validate_surrogates())
         return EXIT_FAILURE;
 
     puts("All OK");
