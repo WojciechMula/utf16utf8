@@ -58,16 +58,18 @@ size_t sse_convert_utf16_to_utf8(const uint16_t* input, size_t size, uint8_t* ou
 
         // 0. determine how many bytes each 16-bit value produces
         //      1 byte  =     (in < 0x0080)
-        //      2 bytes = not (in < 0x0080) and not (in >= 0x0800)
-        //      3 bytes =                           (in >= 0x0800)
-        const __m128i lt0080 = _mm_cmplt_epi16(in, _mm_set1_epi16(0x0080)); // TODO: handle negative values
-        const __m128i ge0800 = _mm_cmplt_epi16(_mm_set1_epi16(0x07ff), in);
+        //      2 bytes = not (in < 0x0080) and (in < 0x0800)
+        //      3 bytes = not (in < 0x0800)
+        const __m128i lt0080 = _mm_cmpeq_epi16(_mm_setzero_si128(),
+                                               _mm_and_si128(in, _mm_set1_epi16((int16_t)0xff80)));
+        const __m128i lt0800 = _mm_cmpeq_epi16(_mm_setzero_si128(),
+                                               _mm_and_si128(in, _mm_set1_epi16((int64_t)0xf800)));
 
         // a. store lt0080 and lt0800 as bitmask, interleaving bits from both vectors
-        const __m128i t0 = _mm_blendv_epi8(lt0080, ge0800, _mm_set1_epi16((int16_t)0xff00));
+        const __m128i t0 = _mm_blendv_epi8(lt0080, lt0800, _mm_set1_epi16((int16_t)0xff00));
         const uint16_t patterns = _mm_movemask_epi8(t0);
- 
-        if (patterns == 0x5555) {
+
+        if (patterns == 0xffff) { // condition: (in < 0x0080)
             // Fast path: only ASCII values
 
             // [0000|0000|0ccc|dddd] => [0ccc|dddd]
@@ -76,18 +78,19 @@ size_t sse_convert_utf16_to_utf8(const uint16_t* input, size_t size, uint8_t* ou
             memcpy(output, &tmp, 8);
             output += 8;
         }
-        else if ((patterns & 0xaaaa) == 0x0000) { // condition: not (in >= 0x08000)
-            // Fast path: values are in range 0x0000 ... 0x0800
+        else if ((patterns & 0xaaaa) == 0xaaaa) { // condition: (in < 0x0800)
+            // Fast path: values are in range 0x0000 ... 0x07ff
             // UTF16 codeword is valid and is expanded to either 1 or 2 bytes of UTF8
 
             // a. for values 00 .. 7f we have transformation (two UTF16 bytes -> one UTF8 byte):
             //    [0000|0000|0ccc|dddd] => [0ccc|dddd]
-            // b. for value  0080 .. 8000 we have (two UTF16 bytes -> two UTF8 bytes)
+            // b. for value  0080 .. 07ff we have (two UTF16 bytes -> two UTF8 bytes)
             //    [0000|0bbb|cccc|dddd] => [110b|bbcc|10cc|dddd]
 
-            // patterns = [0g0h|0i0j|0k0l|0m0n]
+            // tmp      = [0g0h|0i0j|0k0l|0m0n]
             // pattern  =           [gkhl|imjn]
-            const uint8_t pattern = (patterns | (patterns >> 7));
+            const uint16_t tmp     = patterns & 0x5555;
+            const uint8_t  pattern = (tmp | (tmp >> 7));
 
             // [0000|0000|0ccc|dddd]
             const __m128i utf8_1byte = in;
@@ -124,7 +127,7 @@ size_t sse_convert_utf16_to_utf8(const uint16_t* input, size_t size, uint8_t* ou
             // output 2 UTF8 bytes : [0000|0bbb|cccc|dddd] => [110b|bbcc], [10cc|dddd]
             // output 3 UTF8 bytes : [aaaa|bbbb|cccc|dddd] => [1110|aaaa], [10bb|bbcc], [10cc|dddd]
 
-            // a. 1 byte code equals input
+            // a. 1 byte code equals to input
             __m128i word0_1 = in;
 
             // a. build 2 byte codes
@@ -164,11 +167,11 @@ size_t sse_convert_utf16_to_utf8(const uint16_t* input, size_t size, uint8_t* ou
 
             word0_1 = _mm_and_si128(lt0080, word0_1);
 
-            const __m128i not_m2 = _mm_or_si128(lt0080, ge0800);
-            word0_2 = _mm_andnot_si128(not_m2, word0_2);
+            const __m128i m2 = _mm_andnot_si128(lt0080, lt0800);
+            word0_2 = _mm_and_si128(m2, word0_2);
 
-            word0_3 = _mm_and_si128(ge0800, word0_3);
-            word1_3 = _mm_and_si128(ge0800, word1_3);
+            word0_3 = _mm_andnot_si128(lt0800, word0_3);
+            word1_3 = _mm_andnot_si128(lt0800, word1_3);
 
             // 2. expand 2-byte codes into 4-byte codes, possible dwords:
             //    - [0000|0000|0000|0000|0000|0000|0ccc|dddd]

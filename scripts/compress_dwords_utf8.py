@@ -12,21 +12,21 @@ def pshufb_const_aux(pattern):
 
     for k in range(0, 4):
         lt0080 = bool(pattern & (1 << (2*k)))
-        ge0800 = bool(pattern & (1 << (2*k + 1)))
+        lt0800 = bool(pattern & (1 << (2*k + 1)))
 
         byte_index = 4 * k
-        if lt0080 and ge0800:
-            # never generate in code
-            return []
-        elif lt0080:
+        if lt0080:
             result.append(byte_index) # 1 byte
-        elif not lt0080 and not ge0800:
+        elif lt0800:
             result.append(byte_index + 1) # 2 bytes
             result.append(byte_index)
-        elif ge0800:
+        elif not lt0800:
             result.append(byte_index + 2)  # 3 bytes
             result.append(byte_index + 1)
             result.append(byte_index)
+        else:
+            # never generated in code
+            return []
 
     return result
 
