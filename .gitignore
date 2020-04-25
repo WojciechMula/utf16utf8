@@ -3,5 +3,4 @@
 .gdb_history
 
 # our executables
-scalar_test
 unittest

@@ -17,6 +17,3 @@ sse_16bit_lookup.cpp: scripts/sse_compress_16bit_words.py
 
 sse_32bit_lookup.cpp: scripts/sse_compress_32bit_words.py
 	./scripts/sse_compress_32bit_words.py > sse_32bit_lookup.cpp
-
-sscalar_test: scalar_test.cpp scalar.h
-	$(CXX) $(FLAGS) scalar_test.cpp -o scalar_test
