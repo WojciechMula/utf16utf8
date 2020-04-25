@@ -27,8 +27,8 @@ def pshufb_const(pattern):
     return result
 
 
-def expand_utf8():
-    print("const int8_t utf8_compress_lookup[256][16] = {")
+def generate():
+    print("static const int8_t compress_16bit_lookup[256][16] = {")
     for pattern in range(256):
         arr = pshufb_const(pattern)
         cpp = cpp_array_initializer(arr)
@@ -48,10 +48,10 @@ def expand_utf8():
         tmp = pshufb_const(pattern)
         arr.append(16 - tmp.count(-1))
 
-    print("const uint8_t utf8_compress_length[256] = ")
+    print("static const uint8_t compress_16bit_length[256] = ")
     print(fill(cpp_array_initializer(arr)) + ";")
 
 
 if __name__ == '__main__':
-    expand_utf8()
+    generate()
 

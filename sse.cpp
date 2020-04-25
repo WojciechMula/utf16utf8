@@ -117,11 +117,11 @@ size_t sse_convert_utf16_to_utf8(const uint16_t* input, size_t size, uint8_t* ou
             const __m128i utf8_t0 = _mm_blendv_epi8(utf8_2bytes, utf8_1byte, lt0080);
 
             // compress zeros from 1-byte words
-            const __m128i lookup = _mm_loadu_si128((const __m128i*)utf8_compress_lookup[pattern]);
+            const __m128i lookup = _mm_loadu_si128((const __m128i*)compress_16bit_lookup[pattern]);
             const __m128i utf8   = _mm_shuffle_epi8(utf8_t0, lookup);
 
             _mm_storeu_si128((__m128i*)output, utf8);
-            output += utf8_compress_length[pattern];
+            output += compress_16bit_length[pattern];
         } else {
             // input in range 0x0000 .. 0xffff
 
@@ -194,21 +194,21 @@ size_t sse_convert_utf16_to_utf8(const uint16_t* input, size_t size, uint8_t* ou
             // a. compress lo dwords
             {
                 const uint8_t pattern = patterns & 0x00ff;
-                const __m128i lookup  = _mm_loadu_si128((const __m128i*)compress_dwords_utf8_lookup[pattern]);
+                const __m128i lookup  = _mm_loadu_si128((const __m128i*)compress_32bit_lookup[pattern]);
                 const __m128i utf8    = _mm_shuffle_epi8(dword_lo, lookup);
 
                 _mm_storeu_si128((__m128i*)output, utf8);
-                output += compress_dwords_utf8_length[pattern];
+                output += compress_32bit_length[pattern];
             }
 
             // b. compress hi dwords
             {
                 const uint8_t pattern = patterns >> 8;
-                const __m128i lookup  = _mm_loadu_si128((const __m128i*)compress_dwords_utf8_lookup[pattern]);
+                const __m128i lookup  = _mm_loadu_si128((const __m128i*)compress_32bit_lookup[pattern]);
                 const __m128i utf8    = _mm_shuffle_epi8(dword_hi, lookup);
 
                 _mm_storeu_si128((__m128i*)output, utf8);
-                output += compress_dwords_utf8_length[pattern];
+                output += compress_32bit_length[pattern];
             }
         }
     }

@@ -40,12 +40,8 @@ def pshufb_const(pattern):
     return result
 
 
-def cpp_array_initializer(arr):
-    return '{%s}' % (', '.join(map(str, arr)))
-
-
 def generate():
-    print("const int8_t compress_dwords_utf8_lookup[256][16] = {")
+    print("static const int8_t compress_32bit_lookup[256][16] = {")
     for pattern in range(256):
         arr = pshufb_const(pattern)
         cpp = cpp_array_initializer(arr)
@@ -65,7 +61,7 @@ def generate():
         tmp = pshufb_const(pattern)
         arr.append(16 - tmp.count(-1))
 
-    print("const uint8_t compress_dwords_utf8_length[256] = ")
+    print("static const uint8_t compress_32bit_length[256] = ")
     print(fill(cpp_array_initializer(arr)) + ";")
 
 
