@@ -108,7 +108,7 @@ uint8_t *sprint_unicode(uint8_t *str, uint32_t c)	// str must be able to hold 1 
 
 	if (c < 0x0080)
 	{
-		str[0] = c;
+		str[0] = uint8_t(c);
 		if (c > 0)
 			str[1] = '\0';
 	}
@@ -116,7 +116,7 @@ uint8_t *sprint_unicode(uint8_t *str, uint32_t c)	// str must be able to hold 1 
 	{
 		str[1] = (c & m6) | c10x;
 		c >>= 6;
-		str[0] = c | c110x;
+		str[0] = uint8_t(c | c110x);
 		str[2] = '\0';
 	}
 	else if (c < 0x10000)
@@ -125,7 +125,7 @@ uint8_t *sprint_unicode(uint8_t *str, uint32_t c)	// str must be able to hold 1 
 		c >>= 6;
 		str[1] = (c & m6) | c10x;
 		c >>= 6;
-		str[0] = c | c1110x;
+		str[0] = uint8_t(c | c1110x);
 		str[3] = '\0';
 	}
 	else if (c < 0x200000)
@@ -136,7 +136,7 @@ uint8_t *sprint_unicode(uint8_t *str, uint32_t c)	// str must be able to hold 1 
 		c >>= 6;
 		str[1] = (c & m6) | c10x;
 		c >>= 6;
-		str[0] = c | c11110x;
+		str[0] = uint8_t(c | c11110x);
 		str[4] = '\0';
 	}
 	else
@@ -171,7 +171,7 @@ int find_next_utf8_char(uint8_t *str, size_t pos)
 		pos += il;
 	}
 
-	return pos;
+	return int(pos);
 }
 
 // UTF-16
@@ -240,14 +240,14 @@ uint16_t *sprint_utf16(uint16_t *str, uint32_t c)	// str must be able to hold 1 
 	switch (c_size)
 	{
 		case 1:
-			str[0] = c;
+			str[0] = uint8_t(c);
 			if (c > 0)
 				str[1] = '\0';
 			break;
 
 		case 2:
 			c -= 0x10000;
-			str[0] = 0xD800 + (c >> 10);
+			str[0] = uint8_t(0xD800 + (c >> 10));
 			str[1] = 0xDC00 + (c & 0x3FF);
 			str[2] = '\0';
 			break;

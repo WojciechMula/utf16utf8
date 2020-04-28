@@ -9,7 +9,7 @@ namespace utf16 {
         assert(value <= 0xd800 || value > 0xdfff);
         assert(value <= 0x10ffff);
         if (value <= 0xffff) {
-            W1 = value;
+            W1 = uint16_t(value);
             return 1;
         } else {
             value -= 0x10000;

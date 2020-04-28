@@ -31,7 +31,7 @@ size_t sse_convert_utf16_to_utf8(const uint16_t* input, size_t size, uint8_t* ou
         if (surrogates_mask) {
             // for now only scalar fallback   
             auto save_utf8 = [&output](uint32_t value) {
-                auto save_bytes = [&output](uint8_t byte) { *output++ = byte; };
+                auto save_bytes = [&output](int byte) { *output++ = uint8_t(byte); };
                 encode_utf8(value, save_bytes);
             };
 

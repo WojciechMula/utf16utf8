@@ -43,6 +43,6 @@ std::vector<uint16_t> RandomUTF16::generate(size_t count)
 }
 
 std::vector<uint16_t> RandomUTF16::generate(size_t size, long seed) {
-    gen.seed(seed);
+    gen.seed(uint32_t(seed));
     return generate(size);
 }

@@ -82,8 +82,8 @@ uint64_t global_rdtsc_overhead = (uint64_t) UINT64_MAX;
             sum_diff += cycles_diff;                                    \
         }                                                               \
         uint64_t S = size;                                              \
-        float cycle_per_op = (min_diff) / (double)S;                    \
-        float avg_cycle_per_op = (sum_diff) / ((double)S * repeat);     \
+        double cycle_per_op = double(min_diff) / double(S);                    \
+        double avg_cycle_per_op = double(sum_diff) / double(S) * double(repeat);     \
         printf(" %8.3f cycle/op (best) %8.3f cycle/op (avg)\n", cycle_per_op, avg_cycle_per_op); \
  } while (0)
 
