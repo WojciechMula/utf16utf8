@@ -27,7 +27,7 @@ size_t sse_convert_utf16_to_utf8(const uint16_t* input, size_t size, uint8_t* ou
         const __m128i hi_surrogates = _mm_cmpeq_epi16(msn, _mm_set1_epi16(int16_t(0xd800))); // higher byte: 0b1101_10xx
         const __m128i lo_surrogates = _mm_cmpeq_epi16(msn, _mm_set1_epi16(int16_t(0xdc00))); // higher byte: 0b1101_11xx
         const __m128i any_surrogate = _mm_or_si128(lo_surrogates, hi_surrogates);
-        const uint16_t surrogates_mask = _mm_movemask_epi8(any_surrogate);
+        const uint16_t surrogates_mask = uint16_t(_mm_movemask_epi8(any_surrogate));
         if (surrogates_mask) {
             // for now only scalar fallback   
             auto save_utf8 = [&output](uint32_t value) {
@@ -71,14 +71,14 @@ size_t sse_convert_utf16_to_utf8(const uint16_t* input, size_t size, uint8_t* ou
 
         // a. store lt0080 and lt0800 as bitmask, interleaving bits from both vectors
         const __m128i t0 = _mm_blendv_epi8(lt0080, lt0800, _mm_set1_epi16((int16_t)0xff00));
-        const uint16_t patterns = _mm_movemask_epi8(t0);
+        const uint16_t patterns = uint16_t(_mm_movemask_epi8(t0));
 
         if (patterns == 0xffff) { // condition: (in < 0x0080)
             // Fast path: only ASCII values
 
             // [0000|0000|0ccc|dddd] => [0ccc|dddd]
-            const __m128i t0 = _mm_packus_epi16(in, in);
-            uint64_t tmp = _mm_cvtsi128_si64(t0);
+            const __m128i lt0 = _mm_packus_epi16(in, in);
+            uint64_t tmp = _mm_cvtsi128_si64(lt0);
             memcpy(output, &tmp, 8);
             output += 8;
         }
@@ -94,7 +94,7 @@ size_t sse_convert_utf16_to_utf8(const uint16_t* input, size_t size, uint8_t* ou
             // tmp      = [0g0h|0i0j|0k0l|0m0n]
             // pattern  =           [gkhl|imjn]
             const uint16_t tmp     = patterns & 0x5555;
-            const uint8_t  pattern = (tmp | (tmp >> 7));
+            const uint8_t  pattern = uint8_t(tmp | (tmp >> 7));
 
             // [0000|0000|0ccc|dddd]
             const __m128i utf8_1byte = in;
@@ -147,9 +147,9 @@ size_t sse_convert_utf16_to_utf8(const uint16_t* input, size_t size, uint8_t* ou
             tmp     = _mm_slli_epi32(in, 2);                            // [000b|bbcc|ccdd|dd00] // reused later
             byte1_2 = _mm_and_si128(tmp, _mm_set1_epi16(0x1f00));       // [000b|bbcc|0000|0000]
 
-            const __m128i t0 = _mm_set1_epi16((int16_t)0xc080);
+            const __m128i loct0 = _mm_set1_epi16((int16_t)0xc080);
             word0_2 = _mm_or_si128(byte0_2, byte1_2);                   // [000b|bbcc|00cc|dddd]
-            word0_2 = _mm_or_si128(word0_2, t0);                        // [110b|bbcc|10cc|dddd]
+            word0_2 = _mm_or_si128(word0_2, loct0);                     // [110b|bbcc|10cc|dddd]
 
             // b. build 3 byte codes
             __m128i byte0_3;
