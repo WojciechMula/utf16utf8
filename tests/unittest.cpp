@@ -4,7 +4,7 @@
 #include <cstdio>
 #include <cassert>
 
-#include "reference.cpp"
+#include "reference.h"
 
 #include "sse.h"
 #include "random_utf16.h"
@@ -107,7 +107,7 @@ bool validate_all() {
     return true;
 }
 
-int main(int argc, char* argv[]) {
+int main() {
     if (!validate_all())
         return EXIT_FAILURE;
 

@@ -1,7 +1,7 @@
 #include "benchmark.h"
 #include "sse.h"
 #include "random_utf16.h"
-#include "reference.cpp"
+#include "reference.h"
 
 class Benchamark {
 

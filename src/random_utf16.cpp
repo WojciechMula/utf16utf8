@@ -3,11 +3,11 @@
 
 RandomUTF16::RandomUTF16(std::random_device& rd, int prob_1byte, int prob_2bytes, int prob_3bytes, int prob_4bytes)
     : gen(rd())
-    , utf8_length({2*prob_1byte,
-                   2*prob_2bytes,
-                     prob_3bytes,
-                     prob_3bytes,
-                   2*prob_4bytes}) {}
+    , utf8_length({double(2*prob_1byte),
+                   double(2*prob_2bytes),
+                   double(prob_3bytes),
+                   double(prob_3bytes),
+                   double(2*prob_4bytes)}) {}
 
 uint32_t RandomUTF16::generate() {
     switch (utf8_length(gen)) {
