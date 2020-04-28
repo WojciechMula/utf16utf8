@@ -13,8 +13,8 @@ namespace utf16 {
             return 1;
         } else {
             value -= 0x10000;
-            W1 = 0xd800 | ((value >> 10) & 0x03ff);
-            W2 = 0xdc00 | (value & 0x03ff);
+            W1 = uint16_t(0xd800 | ((value >> 10) & 0x03ff));
+            W2 = uint16_t(0xdc00 | (value & 0x03ff));
             return 2;
         }
     }
@@ -26,7 +26,7 @@ namespace utf16 {
             const int n = encode(v, array[0], array[1]);
 
             decode(array, n,
-                [&decoded](uint32_t v) { decoded = v; },
+                [&decoded](uint32_t vv) { decoded = vv; },
                 [](const uint16_t*, const uint16_t*, Error) { puts("critical error"); abort(); });
 
             if (decoded != v)

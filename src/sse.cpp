@@ -194,7 +194,7 @@ size_t sse_convert_utf16_to_utf8(const uint16_t* input, size_t size, uint8_t* ou
             // 3. compress bytes
             // a. compress lo dwords
             {
-                const uint8_t pattern = patterns & 0x00ff;
+                const uint8_t pattern = uint8_t(patterns & 0x00ff);
                 const __m128i lookup  = _mm_loadu_si128((const __m128i*)compress_32bit_lookup[pattern]);
                 const __m128i utf8    = _mm_shuffle_epi8(dword_lo, lookup);
 
@@ -204,7 +204,7 @@ size_t sse_convert_utf16_to_utf8(const uint16_t* input, size_t size, uint8_t* ou
 
             // b. compress hi dwords
             {
-                const uint8_t pattern = patterns >> 8;
+                const uint8_t pattern = uint8_t(patterns >> 8);
                 const __m128i lookup  = _mm_loadu_si128((const __m128i*)compress_32bit_lookup[pattern]);
                 const __m128i utf8    = _mm_shuffle_epi8(dword_hi, lookup);
 

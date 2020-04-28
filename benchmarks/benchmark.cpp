@@ -9,7 +9,7 @@ class Benchamark {
     std::random_device rd{};
 
 public:
-    Benchamark(const size_t size) : size(size) {}
+    Benchamark(const size_t tsize) : size(tsize) {}
 
     void run() {
         const size_t repeat = 10000;

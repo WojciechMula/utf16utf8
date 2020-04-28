@@ -114,27 +114,27 @@ uint8_t *sprint_unicode(uint8_t *str, uint32_t c)	// str must be able to hold 1 
 	}
 	else if (c < 0x0800)
 	{
-		str[1] = (c & m6) | c10x;
+		str[1] = uint8_t((c & m6) | c10x);
 		c >>= 6;
 		str[0] = uint8_t(c | c110x);
 		str[2] = '\0';
 	}
 	else if (c < 0x10000)
 	{
-		str[2] = (c & m6) | c10x;
+		str[2] = uint8_t((c & m6) | c10x);
 		c >>= 6;
-		str[1] = (c & m6) | c10x;
+		str[1] = uint8_t((c & m6) | c10x);
 		c >>= 6;
 		str[0] = uint8_t(c | c1110x);
 		str[3] = '\0';
 	}
 	else if (c < 0x200000)
 	{
-		str[3] = (c & m6) | c10x;
+		str[3] = uint8_t((c & m6) | c10x);
 		c >>= 6;
-		str[2] = (c & m6) | c10x;
+		str[2] = uint8_t((c & m6) | c10x);
 		c >>= 6;
-		str[1] = (c & m6) | c10x;
+		str[1] = uint8_t((c & m6) | c10x);
 		c >>= 6;
 		str[0] = uint8_t(c | c11110x);
 		str[4] = '\0';
@@ -248,7 +248,7 @@ uint16_t *sprint_utf16(uint16_t *str, uint32_t c)	// str must be able to hold 1 
 		case 2:
 			c -= 0x10000;
 			str[0] = uint8_t(0xD800 + (c >> 10));
-			str[1] = 0xDC00 + (c & 0x3FF);
+			str[1] = uint8_t(0xDC00 + (c & 0x3FF));
 			str[2] = '\0';
 			break;
 
