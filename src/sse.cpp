@@ -217,3 +217,83 @@ size_t sse_convert_utf16_to_utf8(const uint16_t* input, size_t size, uint8_t* ou
     // process tail
     return output - start;
 }
+
+
+/***
+ * For UTF-16, we have to worry about two ranges of codepoints.
+ *
+ * (1) U+0000 to U+D7FF 16-bit code units that are numerically equal to the corresponding code points.
+ * 
+ *    Mapped to one or two bytes.
+ * 
+ *  - One byte (ASCII) : U+0000 to U+007F
+ *  - Two bytes        : U+0080 to U+07FF
+ * 
+ *  Code Points        1st       2s       3s       4s
+ * U+0000..U+007F     00..7F
+ * U+0080..U+07FF     C2..DF   80..BF
+ * 
+ * (2) U+E000 to U+FFFF : 16-bit code units that are numerically equal to the corresponding code points.
+ *    Mapped to three bytes.
+ *   U+E000..U+FFFF     EE..EF   80..BF   80..BF
+ * 
+ * 
+ * (3) Code points from U+010000 to U+10FFFF : coded using surrogate pairs.
+ * Mapped to four bytes
+ *
+ * U+100000..U+10FFFF F4       80..8F   80..BF   80..BF
+ **********************************
+ *
+ * https://tools.ietf.org/html/rfc2781
+ * Decoding of a single character from UTF-16 to an ISO 10646 character
+ * value proceeds as follows. Let W1 be the next 16-bit integer in the
+ * sequence of integers representing the text. Let W2 be the (eventual)
+ * next integer following W1.
+ * 
+ * 1) If W1 < 0xD800 or W1 > 0xDFFF, the character value U is the value
+ *    of W1. Terminate.
+ * 
+ * 2) Construct a 20-bit unsigned integer U', taking the 10 low-order
+ *     bits of W1 as its 10 high-order bits and the 10 low-order bits of
+ *     W2 as its 10 low-order bits.
+ * 
+ */
+
+size_t sse_convert_utf8_to_utf16(const uint8_t* input, size_t size, uint16_t* output) {
+    // todo: should specify BOM, we assume LE for now?
+    const uint8_t* end = input + (size & ~0xf); // round down size to 16
+    uint16_t* start = output;
+    while (input != end) {
+        const __m128i in = _mm_loadu_si128((__m128i*)input);
+        const __m128i topbytes = _mm_slli_epi16(in, 8);
+        // first check if we have surrogates
+        // We are ok whenever the most significant byte is < 0xD8 and > 0xDF. Otherwise, surrogates.
+        // Signed integers go from 0 to 0x7f (0 to 127) and from 0x80 (-128) to 0xff (-1).
+        // So the surrogates span:
+        // -40 d8 
+        // -39 d9 
+        // -38 da 
+        // -37 db 
+        // -36 dc 
+        // -35 dd 
+        // -34 de 
+        // -33 df 
+        // 
+        // we deliberately just use > signed comparisons
+
+        const __m128i largeplussurrogates = _mm_cmplt_epi16(topbytes, _mm_set1_epi16(- 40 - 1)); 
+        const __m128i large = _mm_cmpgt_epi16(topbytes, _mm_set1_epi16(-33)); // large means -33 to 127, which is 0xe0--0xff, 0x00-0x7e
+        const __m128i surrogates = _mm_andnot_si128(large, largeplussurrogates); // not(large) and largeplussurrogates
+        const uint16_t surrogates_patterns = uint16_t(_mm_movemask_epi8(surrogates));
+        if(surrogates_patterns != 0) {
+           // have fun
+        } else {
+
+        }
+
+
+
+    }
+    // process tail
+    return output - start;
+}
