@@ -266,6 +266,31 @@ size_t sse_convert_utf8_to_utf16(const uint8_t* input, size_t size, uint16_t* ou
     while (input != end) {
         const __m128i in = _mm_loadu_si128((__m128i*)input);
         const __m128i topbytes = _mm_slli_epi16(in, 8);
+        // if topbytes is empty, then we have ASCII, which might be common enough
+        // in practice, to make a special case for it.
+        const __m128i maxascii = _mm_set1_epi16(0x7F);
+        const __m128i isascii = _mm_cmpeq_epi16(_mm_max_epu16(in,maxascii), maxascii);
+        const uint16_t isascii_patterns = uint16_t(_mm_movemask_epi8(isascii));
+        if(isascii_patterns == 0xFFFF) {
+           // easy case
+           // [0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a] => [aaaaaa....]
+           const __m128i packedascii = _mm_packus_epi16(in,in);
+           _mm_storeu_si128((__m128i*)output, packedascii);
+           output += 8;// wrote 8 ASCII characters, we are done!!!
+           continue;
+        }
+/*
+ *  - One byte (ASCII) : U+0000 to U+007F
+ *  - Two bytes        : U+0080 to U+07FF
+ * 
+ *  Code Points        1st       2s       3s       4s
+ * U+0000..U+007F     00..7F
+ * U+0080..U+07FF     C2..DF   80..BF
+ * 
+ * (2) U+E000 to U+FFFF : 16-bit code units that are numerically equal to the corresponding code points.
+ *    Mapped to three bytes.
+ *   U+E000..U+FFFF     EE..EF   80..BF   80..BF
+ */
         // first check if we have surrogates
         // We are ok whenever the most significant byte is < 0xD8 and > 0xDF. Otherwise, surrogates.
         // Signed integers go from 0 to 0x7f (0 to 127) and from 0x80 (-128) to 0xff (-1).
