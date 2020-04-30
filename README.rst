@@ -8,3 +8,4 @@
 
 * UTF-16 decoder should take BOM
 * UTF-8 decoder should be able to generate a BOM and support BE/LE
+* (optional) Error Handling

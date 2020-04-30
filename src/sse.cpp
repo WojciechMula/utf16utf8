@@ -7,6 +7,7 @@
 #include "scalar_utf16.h"
 #include "sse_16bit_lookup.cpp"
 #include "sse_32bit_lookup.cpp"
+#include "sse_utf16_to_utf8_simple.cpp"
 
 namespace nonstd {
 
@@ -220,7 +221,7 @@ size_t sse_convert_utf16_to_utf8(const uint16_t* input, size_t size, uint8_t* ou
 
 
 /***
- * For UTF-16, we have to worry about two ranges of codepoints.
+ * For UTF-16, we have to worry about three ranges of codepoints.
  *
  * (1) U+0000 to U+D7FF 16-bit code units that are numerically equal to the corresponding code points.
  * 
@@ -239,7 +240,7 @@ size_t sse_convert_utf16_to_utf8(const uint16_t* input, size_t size, uint8_t* ou
  * 
  * 
  * (3) Code points from U+010000 to U+10FFFF : coded using surrogate pairs.
- * Mapped to four bytes
+ * Mapped to four bytes. This is outside of the Basic Multilingual Plane.
  *
  * U+100000..U+10FFFF F4       80..8F   80..BF   80..BF
  **********************************
@@ -265,54 +266,53 @@ size_t sse_convert_utf8_to_utf16(const uint8_t* input, size_t size, uint16_t* ou
     uint16_t* start = output;
     while (input != end) {
         const __m128i in = _mm_loadu_si128((__m128i*)input);
-        const __m128i topbytes = _mm_slli_epi16(in, 8);
-        // if topbytes is empty, then we have ASCII, which might be common enough
+        // ASCII might be common enough
         // in practice, to make a special case for it.
-        const __m128i maxascii = _mm_set1_epi16(0x7F);
-        const __m128i isascii = _mm_cmpeq_epi16(_mm_max_epu16(in,maxascii), maxascii);
-        const uint16_t isascii_patterns = uint16_t(_mm_movemask_epi8(isascii));
-        if(isascii_patterns == 0xFFFF) {
+        const __m128i packedascii = _mm_packus_epi16(in,in);
+        const uint16_t isascii_pattern = uint16_t(_mm_movemask_epi8(packedascii));
+        // to 
+        if(isascii_pattern == 0xFFFF) {
            // easy case
            // [0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a] => [aaaaaa....]
-           const __m128i packedascii = _mm_packus_epi16(in,in);
            _mm_storeu_si128((__m128i*)output, packedascii);
            output += 8;// wrote 8 ASCII characters, we are done!!!
            continue;
         }
-/*
- *  - One byte (ASCII) : U+0000 to U+007F
- *  - Two bytes        : U+0080 to U+07FF
- * 
- *  Code Points        1st       2s       3s       4s
- * U+0000..U+007F     00..7F
- * U+0080..U+07FF     C2..DF   80..BF
- * 
- * (2) U+E000 to U+FFFF : 16-bit code units that are numerically equal to the corresponding code points.
- *    Mapped to three bytes.
- *   U+E000..U+FFFF     EE..EF   80..BF   80..BF
- */
-        // first check if we have surrogates
         // We are ok whenever the most significant byte is < 0xD8 and > 0xDF. Otherwise, surrogates.
+        // SSE is limited to *signed* comparisons and though there is a _mm_cmplt_epi16 intrinsic
+        // the underlying instruction is pcmpgtw. So we want to use _mm_cmpgt_epi16 as much 
+        // as possible for clarity. So the trick is to move the range [0xD800, 0xDFFF] up to the lowest
+        // possible signed value... which is 0x8000. 
+        // Solve for x in 0xD800 - x = 0x8000, get x = 0xD800 - 0x8000. The first
+        // value in the basic plane will be 0xDFFF + 1 - x = 0xDFFF + 1 - (0xD800 - 0x8000)
         // Signed integers go from 0 to 0x7f (0 to 127) and from 0x80 (-128) to 0xff (-1).
-        // So the surrogates span:
-        // -40 d8 
-        // -39 d9 
-        // -38 da 
-        // -37 db 
-        // -36 dc 
-        // -35 dd 
-        // -34 de 
-        // -33 df 
-        // 
-        // we deliberately just use > signed comparisons
 
-        const __m128i largeplussurrogates = _mm_cmplt_epi16(topbytes, _mm_set1_epi16(- 40 - 1)); 
-        const __m128i large = _mm_cmpgt_epi16(topbytes, _mm_set1_epi16(-33)); // large means -33 to 127, which is 0xe0--0xff, 0x00-0x7e
-        const __m128i surrogates = _mm_andnot_si128(large, largeplussurrogates); // not(large) and largeplussurrogates
-        const uint16_t surrogates_patterns = uint16_t(_mm_movemask_epi8(surrogates));
-        if(surrogates_patterns != 0) {
+
+        __m128i basicplane = _mm_cmpgt_epi16(_mm_set1_epi16(0xDFFF + 1 - (0xD800 - 0x8000)),
+           _mm_sub_epi16(in, _mm_set1_epi16(0xD800 - 0x8000)));
+        // again, we just have 8 16-bit word, so surrogates_pattern is really a byte
+        const uint16_t basicplane_pattern = uint16_t(_mm_movemask_epi8(basicplane));
+        if(basicplane_pattern != 0xFFFF) {
            // have fun
+           // we are outside of the  Basic Multilingual Plane
         } else {
+            // path with no surrogates
+            // each of the 16-bit words can :
+            // map to 1 output byte if <=0x7f
+            // map to 2 output bytes if <= 07FF
+            // or three output bytes if in the range 0xE000 0xFFFF 
+            const __m128i maxtwobytes = _mm_set1_epi16(0x07FF);
+            const __m128i istwobytes = _mm_cmpeq_epi16(_mm_max_epu16(in,maxtwobytes), maxtwobytes);
+            const uint16_t istwobytes_pattern = uint16_t(_mm_movemask_epi8(istwobytes));
+            if(istwobytes_pattern == 0xFFFF) {
+                // Each of the two bytes is mapped to either one byte or two bytes, so we effectively
+                // are in compression mode.
+                // we must extract a byte from isascii_pattern, but I would rather not use pdep/pext
+
+            }
+            // have fun?
+
+
 
         }
 
