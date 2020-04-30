@@ -262,6 +262,11 @@ size_t sse_convert_utf16_to_utf8(const uint16_t* input, size_t size, uint8_t* ou
 
 size_t sse_convert_utf8_to_utf16(const uint8_t* input, size_t size, uint16_t* output) {
     // todo: should specify BOM, we assume LE for now?
+    // Could flip them around  with 
+    // _mm_or_si128(
+	//	_mm_slli_epi16(x, 8),
+	//	_mm_srli_epi16(x, 8));
+    // Or be otherwise smarter.
     const uint8_t* end = input + (size & ~0xf); // round down size to 16
     uint16_t* start = output;
     while (input != end) {
@@ -269,9 +274,9 @@ size_t sse_convert_utf8_to_utf16(const uint8_t* input, size_t size, uint16_t* ou
         // ASCII might be common enough
         // in practice, to make a special case for it.
         const __m128i packedascii = _mm_packus_epi16(in,in);
-        const uint16_t isascii_pattern = uint16_t(_mm_movemask_epi8(packedascii));
+        const auto nonascii_pattern = _mm_movemask_epi8(packedascii);
         // to 
-        if(isascii_pattern == 0xFFFF) {
+        if(nonascii_pattern == 0) {
            // easy case
            // [0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a] => [aaaaaa....]
            _mm_storeu_si128((__m128i*)output, packedascii);
@@ -288,11 +293,9 @@ size_t sse_convert_utf8_to_utf16(const uint8_t* input, size_t size, uint16_t* ou
         // Signed integers go from 0 to 0x7f (0 to 127) and from 0x80 (-128) to 0xff (-1).
 
 
-        __m128i basicplane = _mm_cmpgt_epi16(_mm_set1_epi16(0xDFFF + 1 - (0xD800 - 0x8000)),
-           _mm_sub_epi16(in, _mm_set1_epi16(0xD800 - 0x8000)));
-        // again, we just have 8 16-bit word, so surrogates_pattern is really a byte
-        const uint16_t basicplane_pattern = uint16_t(_mm_movemask_epi8(basicplane));
-        if(basicplane_pattern != 0xFFFF) {
+        __m128i basicplane = _mm_cmpgt_epi16(_mm_set1_epi16(uint16_t(0x8800)), // 0x8800 = 0xDFFF + 1 - (0xD800 - 0x8000))
+                   _mm_sub_epi16(in, _mm_set1_epi16(0xD800 - 0x8000)));
+        if(_mm_movemask_epi8(basicplane) != 0xFFFF) {
            // have fun
            // we are outside of the  Basic Multilingual Plane
         } else {
@@ -304,13 +307,34 @@ size_t sse_convert_utf8_to_utf16(const uint8_t* input, size_t size, uint16_t* ou
             const __m128i maxtwobytes = _mm_set1_epi16(0x07FF);
             const __m128i istwobytes = _mm_cmpeq_epi16(_mm_max_epu16(in,maxtwobytes), maxtwobytes);
             const uint16_t istwobytes_pattern = uint16_t(_mm_movemask_epi8(istwobytes));
+            //const uint8_t ascii_pattern = uint8_t(~nonascii_pattern); // with extra work could avoid the negation
             if(istwobytes_pattern == 0xFFFF) {
                 // Each of the two bytes is mapped to either one byte or two bytes, so we effectively
                 // are in compression mode.
-                // we must extract a byte from isascii_pattern, but I would rather not use pdep/pext
+
+                // we need to convert LLLLLLLL 00000HHH (little endian)  into 
+                // - 2 byte character (11 bits):  110HHHLL 10LLLLLL
+                // So I think we can left shift by 12 to get...
+                // 000HHHLL 00000000 (little endian) 
+                // Then we can right shift by 8 to get 
+                // 00000000 LLLLLLLL 
+                // OR ing we get
+                // 000HHHLL LLLLLLLL 
+                // Take istwobytes create two masks (important: these masks are zero if ASCII)
+                // 00000000 11000000 (could be a shift by 16-2 bits)
+                // 11000000 10000000  (could be AND)
+                // and not with first mask
+                // 000HHHLL 00LLLLLL 
+                // OR with second mask
+                // 110HHHLL 10LLLLLL 
+                // 
+                // Finally, shuffle away the extra bytes due to the ASCII, ASCII bytes are up
+                // advance
+            } else {
+                // Having fun yet?
+                //
 
             }
-            // have fun?
 
 
 
