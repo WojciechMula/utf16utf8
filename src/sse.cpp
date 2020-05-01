@@ -314,7 +314,7 @@ size_t sse_convert_utf8_to_utf16(const uint8_t* input, size_t size, uint16_t* ou
 
                 // we need to convert LLLLLLLL 00000HHH (little endian)  into 
                 // - 2 byte character (11 bits):  110HHHLL 10LLLLLL
-                // So I think we can left shift by 12 to get...
+                // So I think we can left shift by 6 to get...
                 // 000HHHLL 00000000 (little endian) 
                 // Then we can right shift by 8 to get 
                 // 00000000 LLLLLLLL 
@@ -332,7 +332,20 @@ size_t sse_convert_utf8_to_utf16(const uint8_t* input, size_t size, uint16_t* ou
                 // advance
             } else {
                 // Having fun yet?
+                // This time we want to convert LLLLLLLL HHHHHHHH
+                // into
+                // - 3 byte character (17 bits):  1110____ (4) 10______ (6) 10______ (6)
+                // - 3 byte character (17 bits):  1110HHHH (4) 10HHHHLL (6) 10LLLLLL (6)
                 //
+                //  Move it to four bytes LLLLLLLL HHHHHHHH
+                //  LLLLLLLL HHHHHHHH 00000000 00000000
+                // We can right shift by 2 to get 
+                //  LLLLLL00 HHHHHHLL 000000HH 00000000
+                // We can right shift by 12 to get
+                // 00000000 LLLL0000 HHHHLLLL 0000HHHH
+                // Blending twice we can get 
+                // LLLLLLLL  HHHHHHLL  <something> 0000HHHH
+
 
             }
 
