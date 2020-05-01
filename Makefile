@@ -11,6 +11,9 @@ benchmark: benchmarks/benchmark.h benchmarks/benchmark.cpp sse.o random_utf16.o 
 random_utf16.o: include/random_utf16.h src/random_utf16.cpp
 	$(CXX) $(FLAGS)  -c src/random_utf16.cpp  -Iinclude
 
+random_utf8.o: include/random_utf8.h src/random_utf8.cpp
+	$(CXX) $(FLAGS)  -c src/random_utf8.cpp  -Iinclude
+
 scalar_utf16.o: include/scalar_utf16.h src/scalar_utf16.cpp
 	$(CXX) $(FLAGS) -c src/scalar_utf16.cpp -Iinclude
 
