@@ -329,6 +329,7 @@ size_t sse_convert_utf8_to_utf16(const uint8_t* input, size_t size, uint16_t* ou
             // map to 2 output bytes if <= 07FF
             // or three output bytes if in the range 0xE000 0xFFFF 
             const __m128i maxtwobytes = _mm_set1_epi16(0x07FF);
+            // could probably save an instruction around her
             const __m128i istwobytes = _mm_cmpeq_epi16(_mm_max_epu16(in,maxtwobytes), maxtwobytes);
             const uint16_t istwobytes_pattern = uint16_t(_mm_movemask_epi8(istwobytes));
             if(istwobytes_pattern == 0xFFFF) {
@@ -361,21 +362,13 @@ size_t sse_convert_utf8_to_utf16(const uint8_t* input, size_t size, uint16_t* ou
                 // Having fun yet?
                 // This time we want to convert LLLLLLLL HHHHHHHH
                 // into
-                // - 3 byte character (17 bits):  1110____ (4) 10______ (6) 10______ (6)
                 // - 3 byte character (17 bits):  1110HHHH (4) 10HHHHLL (6) 10LLLLLL (6)
-                //
-                //  Move it to four bytes LLLLLLLL HHHHHHHH
-                //  LLLLLLLL HHHHHHHH 00000000 00000000
-                // We can right shift by 2 to get 
-                //  LLLLLL00 HHHHHHLL 000000HH 00000000
-                // We can right shift by 12 to get
-                // 00000000 LLLL0000 HHHHLLLL 0000HHHH
-                // Blending twice we can get 
-                // LLLLLLLL  HHHHHHLL  <something> 0000HHHH
+
 
                 __m128i blended1 = sse_convert_utf8_to_utf16_three_byte_blend(_mm_unpacklo_epi16(in, _mm_setzero_si128()));
                 __m128i blended2 = sse_convert_utf8_to_utf16_three_byte_blend(_mm_unpackhi_epi16(in, _mm_setzero_si128()));
 
+                // LLLLLLLL 0000HHHH  00000000  HHHHHHLL
 
                 const __m128i shufmaskandhighbits1 = _mm_lddqu_si128(reinterpret_cast<const __m128i*>(simple_compress_16bit_to_8bit_lookup[nonascii_pattern]));
                 const __m128i shufmaskandhighbits2 = _mm_lddqu_si128(reinterpret_cast<const __m128i*>(simple_compress_16bit_to_8bit_lookup[nonascii_pattern]));
