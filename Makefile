@@ -1,4 +1,4 @@
-FLAGS=-Wall -Wextra -Wpedantic -std=c++17 -O3 -Wfatal-errors -Werror  -Wsign-compare -Wshadow -Wwrite-strings -Wpointer-arith -Winit-self -Wconversion -Wno-sign-conversion -march=native $(CXXFLAGS)
+FLAGS=-Wall -Wextra -Wpedantic -std=c++14 -O3 -Wfatal-errors -Werror  -Wsign-compare -Wshadow -Wwrite-strings -Wpointer-arith -Winit-self -Wconversion -Wno-sign-conversion -march=native $(CXXFLAGS)
 
 all: unittest benchmark
 
