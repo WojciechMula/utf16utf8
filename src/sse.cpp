@@ -8,6 +8,7 @@
 #include "sse_16bit_lookup.cpp"
 #include "sse_32bit_lookup.cpp"
 #include "sse_utf16_to_utf8_simple.cpp"
+#include "sse_utf16_to_utf8_twobytes.cpp"
 
 namespace nonstd {
 
@@ -284,6 +285,14 @@ static inline __m128i sse_convert_utf8_to_utf16_three_byte_blend(__m128i in) {
                 return blendedin;
 }
 
+/**
+ * Todo: 
+ *   - handle the case where we are outside of the  Basic Multilingual Plane
+ *   - test and debug
+ *   - deal with BOM, LE/BE
+ */
+
+
 size_t sse_convert_utf8_to_utf16(const uint8_t* input, size_t size, uint16_t* output) {
     // todo: should specify BOM, we assume LE for now?
     // Could flip them around  with 
@@ -370,8 +379,11 @@ size_t sse_convert_utf8_to_utf16(const uint8_t* input, size_t size, uint16_t* ou
 
                 // LLLLLLLL 0000HHHH  00000000  HHHHHHLL
 
-                const __m128i shufmaskandhighbits1 = _mm_lddqu_si128(reinterpret_cast<const __m128i*>(simple_compress_16bit_to_8bit_lookup[nonascii_pattern]));
-                const __m128i shufmaskandhighbits2 = _mm_lddqu_si128(reinterpret_cast<const __m128i*>(simple_compress_16bit_to_8bit_lookup[nonascii_pattern]));
+                size_t idx1 = twobytes_16bit_to_8bit_firstlookup[nonascii_pattern&0xF][istwobytes_pattern&0xF];
+                size_t idx2 = twobytes_16bit_to_8bit_firstlookup[nonascii_pattern>>4][istwobytes_pattern>>4];
+
+                const __m128i shufmaskandhighbits1 = _mm_lddqu_si128(reinterpret_cast<const __m128i*>(simple_compress_16bit_to_8bit_finallookup[idx1]));
+                const __m128i shufmaskandhighbits2 = _mm_lddqu_si128(reinterpret_cast<const __m128i*>(simple_compress_16bit_to_8bit_finallookup[idx2]));
 
                 const __m128i utf8highbits1 =  _mm_and_si128(shufmaskandhighbits1, _mm_set1_epi16(0xF0));
                 const __m128i utf8highbits2 =  _mm_and_si128(shufmaskandhighbits2, _mm_set1_epi16(0xF0));
@@ -392,20 +404,13 @@ size_t sse_convert_utf8_to_utf16(const uint8_t* input, size_t size, uint16_t* ou
                 const __m128i finaloutput2 = _mm_or_si128(reshuffledmasked2, utf8highbitsshifted2);
 
                 _mm_storeu_si128((__m128i*)output, finaloutput1);
-                output += simple_compress_16bit_to_8bit_len[nonascii_pattern];
+                output += twobytes_16bit_to_8bit_len[nonascii_pattern&0xF][istwobytes_pattern&0xF];
 
                 _mm_storeu_si128((__m128i*)output, finaloutput2);
-                output += simple_compress_16bit_to_8bit_len[nonascii_pattern];
+                output += twobytes_16bit_to_8bit_len[nonascii_pattern>>4][istwobytes_pattern>>4];
                 continue;
-
             }
-
-
-
         }
-
-
-
     }
     // process tail
     return output - start;
