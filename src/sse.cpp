@@ -260,6 +260,30 @@ size_t sse_convert_utf16_to_utf8(const uint16_t* input, size_t size, uint8_t* ou
  * 
  */
 
+
+// used by sse_convert_utf8_to_utf16
+static inline __m128i sse_convert_utf8_to_utf16_three_byte_blend(__m128i in) {
+                // in is
+                // LLLLLLLL HHHHHHHH 00000000 00000000
+                // shifthigh1 is 
+                // 00000000 00000000 LLLLLL00 HHHHHHLL
+                const __m128i shifthigh1 = _mm_slli_epi16(in, 18);
+                // blend
+                // LLLLLLLL HHHHHHHH  LLLLLL00 HHHHHHLL
+                const __m128i inshifthigh1 = _mm_blend_epi16(in, shifthigh1, 0xaaaaaaaa);
+                // shifthigh2 is 
+                // 00000000 0000HHHH  00000000 00000000
+                const __m128i constant_hollow = _mm_set1_epi32(0x00FFFF00);
+                const __m128i shifthigh2 = _mm_and_si128(constant_hollow,_mm_srli_epi16(in, 4));
+                // final blend 
+                // LLLLLLLL 0000HHHH  00000000  HHHHHHLL
+                const __m128i blendedin = _mm_or_si128(_mm_andnot_si128(constant_hollow,inshifthigh1), shifthigh2);
+                //
+                // It is likely we can save a couple of instructions above...
+                //
+                return blendedin;
+}
+
 size_t sse_convert_utf8_to_utf16(const uint8_t* input, size_t size, uint16_t* output) {
     // todo: should specify BOM, we assume LE for now?
     // Could flip them around  with 
@@ -307,7 +331,6 @@ size_t sse_convert_utf8_to_utf16(const uint8_t* input, size_t size, uint16_t* ou
             const __m128i maxtwobytes = _mm_set1_epi16(0x07FF);
             const __m128i istwobytes = _mm_cmpeq_epi16(_mm_max_epu16(in,maxtwobytes), maxtwobytes);
             const uint16_t istwobytes_pattern = uint16_t(_mm_movemask_epi8(istwobytes));
-            //const uint8_t ascii_pattern = uint8_t(~nonascii_pattern); // with extra work could avoid the negation
             if(istwobytes_pattern == 0xFFFF) {
                 // Each of the two bytes is mapped to either one byte or two bytes, so we effectively
                 // are in compression mode.
@@ -320,10 +343,13 @@ size_t sse_convert_utf8_to_utf16(const uint8_t* input, size_t size, uint16_t* ou
                 const __m128i shifthigh = _mm_slli_epi16(in, 2);
                 // Then we can blend the two together
                 // to get LLLLLLLL 000HHHLL
-                const __m128i blendedin = _mm_blend_epi16(in, shifthigh, 0xaaaa);
+                const __m128i constant_high_byte = _mm_set1_epi16(0xFF00);
+                const __m128i blendedin = _mm_blendv_epi8(in, shifthigh, constant_high_byte);
                 const __m128i shufmaskandhighbits = _mm_lddqu_si128(reinterpret_cast<const __m128i*>(simple_compress_16bit_to_8bit_lookup[nonascii_pattern]));
-                const __m128i utf8highbits =  _mm_and_si128(shufmaskandhighbits, _mm_set1_epi16(0xF0));
-                const __m128i shufmask =  _mm_and_si128(shufmaskandhighbits, _mm_set1_epi16(0x0F));
+                const __m128i constant_high_nibble = _mm_set1_epi8(0xF0);
+
+                const __m128i utf8highbits =  _mm_and_si128(shufmaskandhighbits, constant_high_nibble);
+                const __m128i shufmask =  _mm_andnot_si128(shufmaskandhighbits, constant_high_nibble);
                 const __m128i reshuffled = _mm_shuffle_epi8(blendedin, shufmask);
                 const __m128i reshuffledmasked = _mm_andnot_si128(utf8highbits, reshuffled);
                 const __m128i utf8highbitsshifted = _mm_add_epi16(utf8highbits, utf8highbits);
@@ -331,7 +357,6 @@ size_t sse_convert_utf8_to_utf16(const uint8_t* input, size_t size, uint16_t* ou
                 _mm_storeu_si128((__m128i*)output, finaloutput);
                 output += simple_compress_16bit_to_8bit_len[nonascii_pattern];
                 continue;
-                // advance
             } else {
                 // Having fun yet?
                 // This time we want to convert LLLLLLLL HHHHHHHH
@@ -348,6 +373,37 @@ size_t sse_convert_utf8_to_utf16(const uint8_t* input, size_t size, uint16_t* ou
                 // Blending twice we can get 
                 // LLLLLLLL  HHHHHHLL  <something> 0000HHHH
 
+                __m128i blended1 = sse_convert_utf8_to_utf16_three_byte_blend(_mm_unpacklo_epi16(in, _mm_setzero_si128()));
+                __m128i blended2 = sse_convert_utf8_to_utf16_three_byte_blend(_mm_unpackhi_epi16(in, _mm_setzero_si128()));
+
+
+                const __m128i shufmaskandhighbits1 = _mm_lddqu_si128(reinterpret_cast<const __m128i*>(simple_compress_16bit_to_8bit_lookup[nonascii_pattern]));
+                const __m128i shufmaskandhighbits2 = _mm_lddqu_si128(reinterpret_cast<const __m128i*>(simple_compress_16bit_to_8bit_lookup[nonascii_pattern]));
+
+                const __m128i utf8highbits1 =  _mm_and_si128(shufmaskandhighbits1, _mm_set1_epi16(0xF0));
+                const __m128i utf8highbits2 =  _mm_and_si128(shufmaskandhighbits2, _mm_set1_epi16(0xF0));
+
+                const __m128i shufmask1 =  _mm_and_si128(shufmaskandhighbits1, _mm_set1_epi16(0x0F));
+                const __m128i shufmask2 =  _mm_and_si128(shufmaskandhighbits2, _mm_set1_epi16(0x0F));
+
+                const __m128i reshuffled1 = _mm_shuffle_epi8(blended1, shufmask1);
+                const __m128i reshuffled2 = _mm_shuffle_epi8(blended2, shufmask2);
+
+                const __m128i reshuffledmasked1 = _mm_andnot_si128(utf8highbits1, reshuffled1);
+                const __m128i reshuffledmasked2 = _mm_andnot_si128(utf8highbits2, reshuffled2);
+
+                const __m128i utf8highbitsshifted1 = _mm_add_epi16(utf8highbits1, utf8highbits1);
+                const __m128i utf8highbitsshifted2 = _mm_add_epi16(utf8highbits2, utf8highbits2);
+
+                const __m128i finaloutput1 = _mm_or_si128(reshuffledmasked1, utf8highbitsshifted1);
+                const __m128i finaloutput2 = _mm_or_si128(reshuffledmasked2, utf8highbitsshifted2);
+
+                _mm_storeu_si128((__m128i*)output, finaloutput1);
+                output += simple_compress_16bit_to_8bit_len[nonascii_pattern];
+
+                _mm_storeu_si128((__m128i*)output, finaloutput2);
+                output += simple_compress_16bit_to_8bit_len[nonascii_pattern];
+                continue;
 
             }
 
