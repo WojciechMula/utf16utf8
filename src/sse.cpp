@@ -269,22 +269,66 @@ size_t sse_convert_utf16_to_utf8(const uint16_t* input, size_t size, uint8_t* ou
  *   - deal with BOM, LE/BE
  */
 
+#include  <stdexcept>
+void print16(__m128i x) {
+    uint16_t buffer[8];
+    _mm_storeu_si128((__m128i*)buffer, x);
 
-size_t sse_convert_utf8_to_utf16(const uint8_t* input, size_t size, uint16_t* output) {
+    for(size_t i = 0; i < 8; i++) {
+        printf("%x ", buffer[i]);
+    }
+
+}
+void print8(__m128i x) {
+    uint8_t buffer[16];
+    _mm_storeu_si128((__m128i*)buffer, x);
+
+    for(size_t i = 0; i < 16; i++) {
+        printf("%x ", buffer[i]);
+    }
+
+}
+void print8a(__m128i x) {
+    uint8_t buffer[16];
+    _mm_storeu_si128((__m128i*)buffer, x);
+
+    for(size_t i = 0; i < 16; i++) {
+        printf("%d ", buffer[i]);
+    }
+
+}
+void print16s(__m128i x) {
+    int16_t buffer[8];
+    _mm_storeu_si128((__m128i*)buffer, x);
+
+    for(size_t i = 0; i < 8; i++) {
+        printf("%d ", buffer[i]);
+    }
+
+}
+size_t sse_convert_utf16_to_utf8_lemire(const uint16_t* input, size_t size, uint8_t* output) {
     // todo: should specify BOM, we assume LE for now?
     // Could flip them around  with 
     // _mm_or_si128(
 	//	_mm_slli_epi16(x, 8),
 	//	_mm_srli_epi16(x, 8));
     // Or be otherwise smarter.
-    const uint8_t* end = input + (size & ~0xf); // round down size to 16
-    uint16_t* start = output;
+
+    const uint16_t* end = input + (size & ~0x7); // round down size to 8
+    if(size & 0x7) {
+        throw std::runtime_error("limitation: inputs should be divisible by 16 bytes.");
+    }
+    uint8_t* start = output;
     while (input != end) {
         const __m128i in = _mm_loadu_si128((__m128i*)input);
+        printf("\n\n       in\t"); print8(in); printf("\n");
+        input += 8;
         // ASCII might be common enough
         // in practice, to make a special case for it.
         const __m128i packedascii = _mm_packus_epi16(in,in);
-        const auto nonascii_pattern = _mm_movemask_epi8(packedascii);
+        const uint8_t nonascii_pattern = uint8_t(_mm_movemask_epi8(packedascii));
+                        printf("nonascii_pattern %x \n",nonascii_pattern);
+
         // to 
         if(nonascii_pattern == 0) {
            // easy case
@@ -296,18 +340,17 @@ size_t sse_convert_utf8_to_utf16(const uint8_t* input, size_t size, uint16_t* ou
         // We are ok whenever the most significant byte is < 0xD8 and > 0xDF. Otherwise, surrogates.
         // SSE is limited to *signed* comparisons and though there is a _mm_cmplt_epi16 intrinsic
         // the underlying instruction is pcmpgtw. So we want to use _mm_cmpgt_epi16 as much 
-        // as possible for clarity. So the trick is to move the range [0xD800, 0xDFFF] up to the lowest
+        // as possible for clarity. So the trick is to move the range [0xD800, 0xDEFF] up to the lowest
         // possible signed value... which is 0x8000. 
         // Solve for x in 0xD800 - x = 0x8000, get x = 0xD800 - 0x8000. The first
-        // value in the basic plane will be 0xDFFF + 1 - x = 0xDFFF + 1 - (0xD800 - 0x8000)
-        // Signed integers go from 0 to 0x7f (0 to 127) and from 0x80 (-128) to 0xff (-1).
+        // value in the basic plane will be 0xDEFF + 1 - x = 0xDEFF + 1 - (0xD800 - 0x8000)
 
-
-        __m128i basicplane = _mm_cmpgt_epi16(_mm_set1_epi16(uint16_t(0x8800)), // 0x8800 = 0xDFFF + 1 - (0xD800 - 0x8000))
+        __m128i basicplane = _mm_cmpgt_epi16(_mm_set1_epi16(uint16_t(0x8700)), // 0x8700 = 0xDEFF + 1 - (0xD800 - 0x8000))
                    _mm_sub_epi16(in, _mm_set1_epi16(0xD800 - 0x8000)));
-        if(_mm_movemask_epi8(basicplane) != 0xFFFF) {
+        if(_mm_movemask_epi8(basicplane) != 0) {
            // have fun
            // we are outside of the  Basic Multilingual Plane
+           throw std::runtime_error("surrogates unsupported.");
         } else {
             // path with no surrogates
             // each of the 16-bit words can :
@@ -315,17 +358,20 @@ size_t sse_convert_utf8_to_utf16(const uint8_t* input, size_t size, uint16_t* ou
             // map to 2 output bytes if <= 07FF
             // or three output bytes if in the range 0xE000 0xFFFF 
             const __m128i maxtwobytes = _mm_set1_epi16(0x07FF);
-            // could probably save an instruction around her
+            // could probably save an instruction around here
             const __m128i istwobytes = _mm_cmpeq_epi16(_mm_max_epu16(in,maxtwobytes), maxtwobytes);
             const uint16_t istwobytes_pattern = uint16_t(_mm_movemask_epi8(istwobytes));
 
             // first we shift left by 2 to get 
             //  LLLLLL00 HHHHHHLL (little endian) 
-            const __m128i shifthigh = _mm_srli_epi16(in, 2);
+            const __m128i shifthigh = _mm_slli_epi16(in, 2);
+                    printf("shifthigh\t"); print8(shifthigh); printf("\n");
+//c3 a9
             // Then we can blend the two together
             // to get LLLLLLLL HHHHHHLL
             const __m128i constant_high_byte = _mm_set1_epi16(0xFF00);
             const __m128i blendedin = _mm_blendv_epi8(in, shifthigh, constant_high_byte);
+        printf("blendedin\t"); print8(blendedin); printf("\n");
 
             if(istwobytes_pattern == 0xFFFF) {
                 // Each of the two bytes is mapped to either one byte or two bytes, so we effectively
@@ -336,9 +382,8 @@ size_t sse_convert_utf8_to_utf16(const uint8_t* input, size_t size, uint16_t* ou
                 // 
                 const __m128i shufmaskandhighbits = _mm_lddqu_si128(reinterpret_cast<const __m128i*>(simple_compress_16bit_to_8bit_lookup[nonascii_pattern]));
                 const __m128i constant_high_nibble = _mm_set1_epi8(0xF0);
-
                 const __m128i utf8highbits =  _mm_and_si128(shufmaskandhighbits, constant_high_nibble);
-                const __m128i shufmask =  _mm_andnot_si128(shufmaskandhighbits, constant_high_nibble);
+                const __m128i shufmask =  _mm_andnot_si128(constant_high_nibble, shufmaskandhighbits);
                 const __m128i reshuffled = _mm_shuffle_epi8(blendedin, shufmask);
                 const __m128i reshuffledmasked = _mm_andnot_si128(utf8highbits, reshuffled);
                 const __m128i utf8highbitsshifted = _mm_add_epi16(utf8highbits, utf8highbits);
@@ -347,6 +392,7 @@ size_t sse_convert_utf8_to_utf16(const uint8_t* input, size_t size, uint16_t* ou
                 output += simple_compress_16bit_to_8bit_len[nonascii_pattern];
                 continue;
             } else {
+                                printf("thrre bytes\n");
                 // Having fun yet?
                 // This time we want to convert LLLLLLLL HHHHHHHH
                 // into
@@ -395,5 +441,6 @@ size_t sse_convert_utf8_to_utf16(const uint8_t* input, size_t size, uint16_t* ou
         }
     }
     // process tail
+    *output ='\0';// for fun
     return output - start;
 }

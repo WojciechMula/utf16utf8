@@ -107,8 +107,39 @@ bool validate_all() {
     return true;
 }
 
+  #define UNUSED __attribute__((unused))
+
+void utf16decoding_ascii() {
+    const uint8_t * ascii = (const uint8_t *)"abcdefghijklmanfdfdsfdsdsfsfds12";
+    uint16_t  utf16data[1024]{};
+    size_t utf16len = strlen_utf8_to_utf16(ascii);
+    utf8_to_utf16(ascii, utf16data);
+    uint8_t  newascii[1024];
+
+
+    UNUSED size_t asciilen = sse_convert_utf16_to_utf8_lemire(utf16data, utf16len, newascii);
+    printf("%s\n", newascii);
+
+}
+
+
+void utf16decoding_latin() {
+    const uint8_t * latin = (const uint8_t *)"abcdéfghijklmanfdfdsfêsdsfsfds12";
+    uint16_t  utf16data[1024]{};
+    size_t utf16len = strlen_utf8_to_utf16(latin);
+    utf8_to_utf16(latin, utf16data);
+    uint8_t  newlatin[1024];
+
+
+    UNUSED size_t asciilen = sse_convert_utf16_to_utf8_lemire(utf16data, utf16len, newlatin);
+    printf("%s\n", newlatin);
+
+}
+
 int main() {
-    if (!validate_all())
+    utf16decoding_latin();
+//    utf16decoding_ascii();
+    /*if (!validate_all())
         return EXIT_FAILURE;
 
     if (!validate_no_surrogates())
@@ -118,5 +149,6 @@ int main() {
         return EXIT_FAILURE;
 
     puts("All OK");
-    return EXIT_SUCCESS;
+    return EXIT_SUCCESS;*/
 }
+
