@@ -53,7 +53,7 @@ def shuf():
     if(not (i in bigmap)): continue
     m = bigmap[i]
     pos = 0
-    M = [255 for i in range(16)]
+    M = [0 for i in range(16)]
 
     for j in range(4):
       if(m[j] == 0):

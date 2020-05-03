@@ -8,7 +8,7 @@
 #include "sse_16bit_lookup.cpp"
 #include "sse_32bit_lookup.cpp"
 #include "sse_utf16_to_utf8_simple.cpp"
-#include "sse_utf16_to_utf8_twobytes.cpp"
+#include "sse_utf16_to_utf8_threebytes.cpp"
 
 namespace nonstd {
 
