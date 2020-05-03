@@ -262,29 +262,6 @@ size_t sse_convert_utf16_to_utf8(const uint16_t* input, size_t size, uint8_t* ou
  */
 
 
-// used by sse_convert_utf8_to_utf16
-static inline __m128i sse_convert_utf8_to_utf16_three_byte_blend(__m128i in) {
-                // in is
-                // LLLLLLLL HHHHHHHH 00000000 00000000
-                // shifthigh1 is 
-                // 00000000 00000000 LLLLLL00 HHHHHHLL
-                const __m128i shifthigh1 = _mm_slli_epi16(in, 18);
-                // blend
-                // LLLLLLLL HHHHHHHH  LLLLLL00 HHHHHHLL
-                const __m128i inshifthigh1 = _mm_blend_epi16(in, shifthigh1, 0xaaaaaaaa);
-                // shifthigh2 is 
-                // 00000000 0000HHHH  00000000 00000000
-                const __m128i constant_hollow = _mm_set1_epi32(0x00FFFF00);
-                const __m128i shifthigh2 = _mm_and_si128(constant_hollow,_mm_srli_epi16(in, 4));
-                // final blend 
-                // LLLLLLLL 0000HHHH  00000000  HHHHHHLL
-                const __m128i blendedin = _mm_or_si128(_mm_andnot_si128(constant_hollow,inshifthigh1), shifthigh2);
-                //
-                // It is likely we can save a couple of instructions above...
-                //
-                return blendedin;
-}
-
 /**
  * Todo: 
  *   - handle the case where we are outside of the  Basic Multilingual Plane
@@ -341,6 +318,15 @@ size_t sse_convert_utf8_to_utf16(const uint8_t* input, size_t size, uint16_t* ou
             // could probably save an instruction around her
             const __m128i istwobytes = _mm_cmpeq_epi16(_mm_max_epu16(in,maxtwobytes), maxtwobytes);
             const uint16_t istwobytes_pattern = uint16_t(_mm_movemask_epi8(istwobytes));
+
+            // first we shift left by 2 to get 
+            //  LLLLLL00 HHHHHHLL (little endian) 
+            const __m128i shifthigh = _mm_srli_epi16(in, 2);
+            // Then we can blend the two together
+            // to get LLLLLLLL HHHHHHLL
+            const __m128i constant_high_byte = _mm_set1_epi16(0xFF00);
+            const __m128i blendedin = _mm_blendv_epi8(in, shifthigh, constant_high_byte);
+
             if(istwobytes_pattern == 0xFFFF) {
                 // Each of the two bytes is mapped to either one byte or two bytes, so we effectively
                 // are in compression mode.
@@ -348,13 +334,6 @@ size_t sse_convert_utf8_to_utf16(const uint8_t* input, size_t size, uint16_t* ou
                 // we need to convert LLLLLLLL 00000HHH (little endian)  into 
                 // - 2 byte character (11 bits):  110HHHLL 10LLLLLL
                 // 
-                // first we shift left by 2 to get 
-                //  LLLLLL00 000HHHLL (little endian) 
-                const __m128i shifthigh = _mm_slli_epi16(in, 2);
-                // Then we can blend the two together
-                // to get LLLLLLLL 000HHHLL
-                const __m128i constant_high_byte = _mm_set1_epi16(0xFF00);
-                const __m128i blendedin = _mm_blendv_epi8(in, shifthigh, constant_high_byte);
                 const __m128i shufmaskandhighbits = _mm_lddqu_si128(reinterpret_cast<const __m128i*>(simple_compress_16bit_to_8bit_lookup[nonascii_pattern]));
                 const __m128i constant_high_nibble = _mm_set1_epi8(0xF0);
 
@@ -373,11 +352,14 @@ size_t sse_convert_utf8_to_utf16(const uint8_t* input, size_t size, uint16_t* ou
                 // into
                 // - 3 byte character (17 bits):  1110HHHH (4) 10HHHHLL (6) 10LLLLLL (6)
 
+                //  HHHHLLLL 0000HHHH (little endian) 
+                const __m128i shifthigh4 = _mm_srli_epi16(in, 4);
 
-                __m128i blended1 = sse_convert_utf8_to_utf16_three_byte_blend(_mm_unpacklo_epi16(in, _mm_setzero_si128()));
-                __m128i blended2 = sse_convert_utf8_to_utf16_three_byte_blend(_mm_unpackhi_epi16(in, _mm_setzero_si128()));
-
-                // LLLLLLLL 0000HHHH  00000000  HHHHHHLL
+                __m128i blended1 = _mm_unpacklo_epi16(blendedin,shifthigh4);                
+                __m128i blended2 = _mm_unpackhi_epi16(blendedin,shifthigh4);
+                
+                // LLLLLLLL HHHHHHLL HHHHLLLL 0000HHHH 
+                //  0, 1, 3
 
                 size_t idx1 = twobytes_16bit_to_8bit_firstlookup[nonascii_pattern&0xF][istwobytes_pattern&0xF];
                 size_t idx2 = twobytes_16bit_to_8bit_firstlookup[nonascii_pattern>>4][istwobytes_pattern>>4];

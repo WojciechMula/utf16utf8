@@ -60,18 +60,17 @@ def shuf():
         M[pos] = j * 4 # ascii is always at even locations 0,1,...
         pos += 1
       elif (m[j] == 1):
-        M[pos] = (j * 4 + 3) | 0b11100000
+        M[pos] = (j * 4 + 1) | 0b11100000
         M[pos + 1] = (j * 4) | 0b11000000
         pos += 2      
       else:
-        M[pos] = (j * 4 + 1)| 0b11110000
-        M[pos + 1] = (j * 4 + 3) | 0b11000000
+        M[pos] = (j * 4 + 3)| 0b11110000
+        M[pos + 1] = (j * 4 + 1) | 0b11000000
         M[pos + 2] = (j * 4) | 0b11000000
         pos += 3
     t.append(M)
   print("static const uint8_t simple_compress_16bit_to_8bit_finallookup[81][16] = ")
   print(cpp_arrayarray_initializer(t) + ";")
-
 
 
 
