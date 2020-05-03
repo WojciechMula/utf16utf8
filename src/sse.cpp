@@ -312,7 +312,7 @@ size_t sse_convert_utf16_to_utf8_lemire(const uint16_t* input, size_t size, uint
         if(_mm_movemask_epi8(basicplane) != 0) {
            // have fun
            // we are outside of the  Basic Multilingual Plane
-           throw std::runtime_error("surrogates unsupported.");
+            std::runtime_error("surrogates unsupported.");
         } else {
             // path with no surrogates
             // each of the 16-bit words can :
@@ -354,11 +354,14 @@ size_t sse_convert_utf16_to_utf8_lemire(const uint16_t* input, size_t size, uint
                 // - 3 byte character (17 bits):  1110HHHH (4) 10HHHHLL (6) 10LLLLLL (6)
 
                 //  HHHHLLLL 0000HHHH (little endian) 
+                size_t idx1 = twobytes_16bit_to_8bit_firstlookup[nonascii_pattern&0xF][istwobytes_pattern&0xF];
+                size_t idx2 = twobytes_16bit_to_8bit_firstlookup[nonascii_pattern>>4][istwobytes_pattern>>4];
+                size_t len1 = twobytes_16bit_to_8bit_len[nonascii_pattern&0xF][istwobytes_pattern&0xF];
+                size_t len2 = twobytes_16bit_to_8bit_len[nonascii_pattern>>4][istwobytes_pattern>>4];
+
                 const __m128i shifthigh4 = _mm_srli_epi16(in, 4);
                 __m128i blended1 = _mm_unpacklo_epi16(blendedin,shifthigh4);                
                 __m128i blended2 = _mm_unpackhi_epi16(blendedin,shifthigh4);
-                size_t idx1 = twobytes_16bit_to_8bit_firstlookup[nonascii_pattern&0xF][istwobytes_pattern&0xF];
-                size_t idx2 = twobytes_16bit_to_8bit_firstlookup[nonascii_pattern>>4][istwobytes_pattern>>4];
                 const __m128i shufmaskandhighbits1 = _mm_lddqu_si128(reinterpret_cast<const __m128i*>(simple_compress_16bit_to_8bit_finallookup[idx1]));
                 const __m128i shufmaskandhighbits2 = _mm_lddqu_si128(reinterpret_cast<const __m128i*>(simple_compress_16bit_to_8bit_finallookup[idx2]));
                 const __m128i constant_low_nibble = _mm_set1_epi8(0x0F);
@@ -374,8 +377,6 @@ size_t sse_convert_utf16_to_utf8_lemire(const uint16_t* input, size_t size, uint
                 const __m128i utf8highbitsshifted2 = _mm_add_epi8(utf8highbits2, utf8highbits2);
                 const __m128i finaloutput1 = _mm_or_si128(reshuffledmasked1, utf8highbitsshifted1);
                 const __m128i finaloutput2 = _mm_or_si128(reshuffledmasked2, utf8highbitsshifted2);
-                size_t len1 = twobytes_16bit_to_8bit_len[nonascii_pattern&0xF][istwobytes_pattern&0xF];
-                size_t len2 = twobytes_16bit_to_8bit_len[nonascii_pattern>>4][istwobytes_pattern>>4];
                 _mm_storeu_si128((__m128i*)output, finaloutput1);
                 output += len1;
                 _mm_storeu_si128((__m128i*)output, finaloutput2);

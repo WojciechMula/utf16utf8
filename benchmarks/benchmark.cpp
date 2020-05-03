@@ -33,8 +33,9 @@ public:
         puts("- Output exactly 3 UTF8 bytes");
         run(gen_3bytes, repeat);
 
-        puts("- Output exactly 4 UTF8 bytes");
-        run(gen_4bytes, repeat);
+        // todo: unsupported by sse_convert_utf16_to_utf8_lemire
+        //puts("- Output exactly 4 UTF8 bytes");
+        //run(gen_4bytes, repeat);
 
         puts("- Output 1 or 2 UTF8 bytes");
         run(gen_1_2, repeat);
@@ -42,8 +43,9 @@ public:
         puts("- Output 1, 2 or 3 UTF8 bytes");
         run(gen_1_2_3, repeat);
 
-        puts("- Output 1, 2, 3 or 4 UTF8 bytes");
-        run(anylength, repeat);
+        // todo: unsupported by sse_convert_utf16_to_utf8_lemire
+        //puts("- Output 1, 2, 3 or 4 UTF8 bytes");
+        //run(anylength, repeat);
     }
 
 
@@ -64,18 +66,23 @@ public:
             sse_convert_utf16_to_utf8(UTF16.data(), size, (uint8_t*)sse_out.data());
         };
 
+        auto sse_lemire = [&generator, &UTF16, &sse_out, size=size]() {
+            sse_convert_utf16_to_utf8_lemire(UTF16.data(), size, (uint8_t*)sse_out.data());
+        };
 #define RUN(name, procedure) \
     BEST_TIME(/**/, procedure(), name, repeat, size);
 
         RUN("scalar", scalar);
         RUN("SSE",    sse);
+        RUN("SSELEM",    sse_lemire);
+
     }
 
 };
 
 int main() {
-
-    std::vector<size_t> input_size{256, 512, 1024, 2048, 4096};
+    // todo: Daniel finds the endless stream of numbers too much
+    std::vector<size_t> input_size{1024};//256 , 512, 1024, 2048, 4096};
     for (const size_t size: input_size) {
         Benchamark bench(size);
         bench.run();
