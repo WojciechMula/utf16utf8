@@ -270,42 +270,8 @@ size_t sse_convert_utf16_to_utf8(const uint16_t* input, size_t size, uint8_t* ou
  */
 
 #include  <stdexcept>
-void print16(__m128i x) {
-    uint16_t buffer[8];
-    _mm_storeu_si128((__m128i*)buffer, x);
 
-    for(size_t i = 0; i < 8; i++) {
-        printf("%x ", buffer[i]);
-    }
-
-}
-void print8(__m128i x) {
-    uint8_t buffer[16];
-    _mm_storeu_si128((__m128i*)buffer, x);
-
-    for(size_t i = 0; i < 16; i++) {
-        printf("%x ", buffer[i]);
-    }
-
-}
-void print8a(__m128i x) {
-    uint8_t buffer[16];
-    _mm_storeu_si128((__m128i*)buffer, x);
-
-    for(size_t i = 0; i < 16; i++) {
-        printf("%d ", buffer[i]);
-    }
-
-}
-void print16s(__m128i x) {
-    int16_t buffer[8];
-    _mm_storeu_si128((__m128i*)buffer, x);
-
-    for(size_t i = 0; i < 8; i++) {
-        printf("%d ", buffer[i]);
-    }
-
-}
+// accidentally, Daniel reimplemented utf16_to_utf8 independently!!!
 size_t sse_convert_utf16_to_utf8_lemire(const uint16_t* input, size_t size, uint8_t* output) {
     // todo: should specify BOM, we assume LE for now?
     // Could flip them around  with 
@@ -313,7 +279,6 @@ size_t sse_convert_utf16_to_utf8_lemire(const uint16_t* input, size_t size, uint
 	//	_mm_slli_epi16(x, 8),
 	//	_mm_srli_epi16(x, 8));
     // Or be otherwise smarter.
-
     const uint16_t* end = input + (size & ~0x7); // round down size to 8
     if(size & 0x7) {
         throw std::runtime_error("limitation: inputs should be divisible by 16 bytes.");
@@ -321,14 +286,11 @@ size_t sse_convert_utf16_to_utf8_lemire(const uint16_t* input, size_t size, uint
     uint8_t* start = output;
     while (input != end) {
         const __m128i in = _mm_loadu_si128((__m128i*)input);
-        printf("\n\n       in\t"); print8(in); printf("\n");
         input += 8;
         // ASCII might be common enough
         // in practice, to make a special case for it.
-        const __m128i packedascii = _mm_packus_epi16(in,in);
+        const __m128i packedascii = _mm_packus_epi16(in,_mm_setzero_si128 ());
         const uint8_t nonascii_pattern = uint8_t(_mm_movemask_epi8(packedascii));
-                        printf("nonascii_pattern %x \n",nonascii_pattern);
-
         // to 
         if(nonascii_pattern == 0) {
            // easy case
@@ -359,21 +321,16 @@ size_t sse_convert_utf16_to_utf8_lemire(const uint16_t* input, size_t size, uint
             // or three output bytes if in the range 0xE000 0xFFFF 
             const __m128i maxtwobytes = _mm_set1_epi16(0x07FF);
             // could probably save an instruction around here
-            const __m128i istwobytes = _mm_cmpeq_epi16(_mm_max_epu16(in,maxtwobytes), maxtwobytes);
+            const __m128i istwobytes = _mm_packs_epi16(_mm_cmpeq_epi16(_mm_max_epu16(in,maxtwobytes), maxtwobytes),_mm_setzero_si128());
             const uint16_t istwobytes_pattern = uint16_t(_mm_movemask_epi8(istwobytes));
-
             // first we shift left by 2 to get 
             //  LLLLLL00 HHHHHHLL (little endian) 
             const __m128i shifthigh = _mm_slli_epi16(in, 2);
-                    printf("shifthigh\t"); print8(shifthigh); printf("\n");
-//c3 a9
             // Then we can blend the two together
             // to get LLLLLLLL HHHHHHLL
             const __m128i constant_high_byte = _mm_set1_epi16(0xFF00);
             const __m128i blendedin = _mm_blendv_epi8(in, shifthigh, constant_high_byte);
-        printf("blendedin\t"); print8(blendedin); printf("\n");
-
-            if(istwobytes_pattern == 0xFFFF) {
+            if(istwobytes_pattern == 0xFF) {
                 // Each of the two bytes is mapped to either one byte or two bytes, so we effectively
                 // are in compression mode.
 
@@ -386,13 +343,11 @@ size_t sse_convert_utf16_to_utf8_lemire(const uint16_t* input, size_t size, uint
                 const __m128i shufmask =  _mm_andnot_si128(constant_high_nibble, shufmaskandhighbits);
                 const __m128i reshuffled = _mm_shuffle_epi8(blendedin, shufmask);
                 const __m128i reshuffledmasked = _mm_andnot_si128(utf8highbits, reshuffled);
-                const __m128i utf8highbitsshifted = _mm_add_epi16(utf8highbits, utf8highbits);
+                const __m128i utf8highbitsshifted = _mm_add_epi8(utf8highbits, utf8highbits);
                 const __m128i finaloutput = _mm_or_si128(reshuffledmasked, utf8highbitsshifted);
                 _mm_storeu_si128((__m128i*)output, finaloutput);
                 output += simple_compress_16bit_to_8bit_len[nonascii_pattern];
-                continue;
             } else {
-                                printf("thrre bytes\n");
                 // Having fun yet?
                 // This time we want to convert LLLLLLLL HHHHHHHH
                 // into
@@ -400,43 +355,31 @@ size_t sse_convert_utf16_to_utf8_lemire(const uint16_t* input, size_t size, uint
 
                 //  HHHHLLLL 0000HHHH (little endian) 
                 const __m128i shifthigh4 = _mm_srli_epi16(in, 4);
-
                 __m128i blended1 = _mm_unpacklo_epi16(blendedin,shifthigh4);                
                 __m128i blended2 = _mm_unpackhi_epi16(blendedin,shifthigh4);
-                
-                // LLLLLLLL HHHHHHLL HHHHLLLL 0000HHHH 
-                //  0, 1, 3
-
                 size_t idx1 = twobytes_16bit_to_8bit_firstlookup[nonascii_pattern&0xF][istwobytes_pattern&0xF];
                 size_t idx2 = twobytes_16bit_to_8bit_firstlookup[nonascii_pattern>>4][istwobytes_pattern>>4];
-
                 const __m128i shufmaskandhighbits1 = _mm_lddqu_si128(reinterpret_cast<const __m128i*>(simple_compress_16bit_to_8bit_finallookup[idx1]));
                 const __m128i shufmaskandhighbits2 = _mm_lddqu_si128(reinterpret_cast<const __m128i*>(simple_compress_16bit_to_8bit_finallookup[idx2]));
-
-                const __m128i utf8highbits1 =  _mm_and_si128(shufmaskandhighbits1, _mm_set1_epi16(0xF0));
-                const __m128i utf8highbits2 =  _mm_and_si128(shufmaskandhighbits2, _mm_set1_epi16(0xF0));
-
-                const __m128i shufmask1 =  _mm_and_si128(shufmaskandhighbits1, _mm_set1_epi16(0x0F));
-                const __m128i shufmask2 =  _mm_and_si128(shufmaskandhighbits2, _mm_set1_epi16(0x0F));
-
+                const __m128i constant_low_nibble = _mm_set1_epi8(0x0F);
+                const __m128i utf8highbits1 =  _mm_andnot_si128(constant_low_nibble,shufmaskandhighbits1);
+                const __m128i utf8highbits2 =  _mm_andnot_si128(constant_low_nibble,shufmaskandhighbits2);
+                const __m128i shufmask1 =  _mm_and_si128(shufmaskandhighbits1, constant_low_nibble);
+                const __m128i shufmask2 =  _mm_and_si128(shufmaskandhighbits2, constant_low_nibble);
                 const __m128i reshuffled1 = _mm_shuffle_epi8(blended1, shufmask1);
                 const __m128i reshuffled2 = _mm_shuffle_epi8(blended2, shufmask2);
-
                 const __m128i reshuffledmasked1 = _mm_andnot_si128(utf8highbits1, reshuffled1);
                 const __m128i reshuffledmasked2 = _mm_andnot_si128(utf8highbits2, reshuffled2);
-
-                const __m128i utf8highbitsshifted1 = _mm_add_epi16(utf8highbits1, utf8highbits1);
-                const __m128i utf8highbitsshifted2 = _mm_add_epi16(utf8highbits2, utf8highbits2);
-
+                const __m128i utf8highbitsshifted1 = _mm_add_epi8(utf8highbits1, utf8highbits1);
+                const __m128i utf8highbitsshifted2 = _mm_add_epi8(utf8highbits2, utf8highbits2);
                 const __m128i finaloutput1 = _mm_or_si128(reshuffledmasked1, utf8highbitsshifted1);
                 const __m128i finaloutput2 = _mm_or_si128(reshuffledmasked2, utf8highbitsshifted2);
-
+                size_t len1 = twobytes_16bit_to_8bit_len[nonascii_pattern&0xF][istwobytes_pattern&0xF];
+                size_t len2 = twobytes_16bit_to_8bit_len[nonascii_pattern>>4][istwobytes_pattern>>4];
                 _mm_storeu_si128((__m128i*)output, finaloutput1);
-                output += twobytes_16bit_to_8bit_len[nonascii_pattern&0xF][istwobytes_pattern&0xF];
-
+                output += len1;
                 _mm_storeu_si128((__m128i*)output, finaloutput2);
-                output += twobytes_16bit_to_8bit_len[nonascii_pattern>>4][istwobytes_pattern>>4];
-                continue;
+                output += len2;
             }
         }
     }

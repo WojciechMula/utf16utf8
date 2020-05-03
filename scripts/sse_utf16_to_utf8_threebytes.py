@@ -50,6 +50,7 @@ def ascii_twobytes():
 def shuf():
   t = []
   for i in range(81):
+    if(not (i in bigmap)): continue
     m = bigmap[i]
     pos = 0
     M = [255 for i in range(16)]
