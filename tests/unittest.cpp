@@ -166,7 +166,7 @@ int main() {
     if (!utf16decoding_threebytes())
         return EXIT_FAILURE;
 
-    /*if (!validate_all())
+    if (!validate_all())
         return EXIT_FAILURE;
 
     if (!validate_no_surrogates())
@@ -176,6 +176,6 @@ int main() {
         return EXIT_FAILURE;
 
     puts("All OK");
-    return EXIT_SUCCESS;*/
+    return EXIT_SUCCESS;
 }
 
