@@ -7,8 +7,6 @@
 #include "scalar_utf16.h"
 #include "sse_16bit_lookup.cpp"
 #include "sse_32bit_lookup.cpp"
-#include "sse_utf16_to_utf8_simple.cpp"
-#include "sse_utf16_to_utf8_threebytes.cpp"
 #include "sse_utf8_to_utf16.cpp"
 
 namespace nonstd {
@@ -265,129 +263,244 @@ size_t sse_convert_utf16_to_utf8(const uint16_t* input, size_t size, uint8_t* ou
 
 /**
  * Todo: 
- *   - handle the case where we are outside of the  Basic Multilingual Plane
- *   - test and debug
  *   - deal with BOM, LE/BE
  */
 
-#include  <stdexcept>
 
-// accidentally, Daniel reimplemented utf16_to_utf8 independently!!!
-size_t sse_convert_utf16_to_utf8_lemire(const uint16_t* input, size_t size, uint8_t* output) {
-    // todo: should specify BOM, we assume LE for now?
-    // Could flip them around  with 
-    // _mm_or_si128(
-	//	_mm_slli_epi16(x, 8),
-	//	_mm_srli_epi16(x, 8));
-    // Or be otherwise smarter.
-    const uint16_t* end = input + (size & ~0x7); // round down size to 8
-    if(size & 0x7) {
-        throw std::runtime_error("limitation: inputs should be divisible by 16 bytes.");
+
+
+size_t sse_convert_utf16_to_utf8_hybrid(const uint16_t *input, size_t size,
+                                        uint8_t *output) {
+
+  const uint16_t *end = input + (size & ~0x7); // round down size to 8
+  uint8_t *start = output;
+  while (input != end) {
+    const __m128i in = _mm_loadu_si128((__m128i *)input);
+    // 1. test for ASCII
+
+    const __m128i lt0080 =
+        _mm_cmpeq_epi16(_mm_setzero_si128(),
+                        _mm_and_si128(in, _mm_set1_epi16((int16_t)0xff80)));
+    uint16_t ascii_patterns = uint16_t(_mm_movemask_epi8(lt0080));
+
+    if (ascii_patterns == 0xFFFF) {
+      // Fast path: only ASCII values
+
+      // [0000|0000|0ccc|dddd] => [0ccc|dddd]
+      const __m128i lt0 = _mm_packus_epi16(in, in);
+      uint64_t tmp = _mm_cvtsi128_si64(lt0);
+      memcpy(output, &tmp, 8);
+      output += 8;
+      input += 8;
+      continue;
     }
-    uint8_t* start = output;
-    while (input != end) {
-        const __m128i in = _mm_loadu_si128((__m128i*)input);
-        input += 8;
-        // ASCII might be common enough
-        // in practice, to make a special case for it.
-        const __m128i packedascii = _mm_packus_epi16(in,_mm_setzero_si128 ());
-        const uint8_t nonascii_pattern = uint8_t(_mm_movemask_epi8(packedascii));
-        // to 
-        if(nonascii_pattern == 0) {
-           // easy case
-           // [0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a] => [aaaaaa....]
-           _mm_storeu_si128((__m128i*)output, packedascii);
-           output += 8;// wrote 8 ASCII characters, we are done!!!
-           continue;
-        }
-        // We are ok whenever the most significant byte is < 0xD8 and > 0xDF. Otherwise, surrogates.
-        // SSE is limited to *signed* comparisons and though there is a _mm_cmplt_epi16 intrinsic
-        // the underlying instruction is pcmpgtw. So we want to use _mm_cmpgt_epi16 as much 
-        // as possible for clarity. So the trick is to move the range [0xD800, 0xDEFF] up to the lowest
-        // possible signed value... which is 0x8000. 
-        // Solve for x in 0xD800 - x = 0x8000, get x = 0xD800 - 0x8000. The first
-        // value in the basic plane will be 0xDEFF + 1 - x = 0xDEFF + 1 - (0xD800 - 0x8000)
 
-        __m128i basicplane = _mm_cmpgt_epi16(_mm_set1_epi16(uint16_t(0x8700)), // 0x8700 = 0xDEFF + 1 - (0xD800 - 0x8000))
-                   _mm_sub_epi16(in, _mm_set1_epi16(0xD800 - 0x8000)));
-        if(_mm_movemask_epi8(basicplane) != 0) {
-           // have fun
-           // we are outside of the  Basic Multilingual Plane
-            std::runtime_error("surrogates unsupported.");
-        } else {
-            // path with no surrogates
-            // each of the 16-bit words can :
-            // map to 1 output byte if <=0x7f
-            // map to 2 output bytes if <= 07FF
-            // or three output bytes if in the range 0xE000 0xFFFF 
-            const __m128i maxtwobytes = _mm_set1_epi16(0x07FF);
-            // could probably save an instruction around here
-            const __m128i istwobytes = _mm_packs_epi16(_mm_cmpeq_epi16(_mm_max_epu16(in,maxtwobytes), maxtwobytes),_mm_setzero_si128());
-            const uint16_t istwobytes_pattern = uint16_t(_mm_movemask_epi8(istwobytes));
-            // first we shift left by 2 to get 
-            //  LLLLLL00 HHHHHHLL (little endian) 
-            const __m128i shifthigh = _mm_slli_epi16(in, 2);
-            // Then we can blend the two together
-            // to get LLLLLLLL HHHHHHLL
-            const __m128i constant_high_byte = _mm_set1_epi16(0xFF00);
-            const __m128i blendedin = _mm_blendv_epi8(in, shifthigh, constant_high_byte);
-            if(istwobytes_pattern == 0xFF) {
-                // Each of the two bytes is mapped to either one byte or two bytes, so we effectively
-                // are in compression mode.
+    ascii_patterns &= 0x5555;
+       
+    // 0. determine how many bytes each 16-bit value produces
+    //      1 byte  =     (in < 0x0080)
+    //      2 bytes = not (in < 0x0080) and (in < 0x0800)
+    //      3 bytes = not (in < 0x0800)
 
-                // we need to convert LLLLLLLL 00000HHH (little endian)  into 
-                // - 2 byte character (11 bits):  110HHHLL 10LLLLLL
-                // 
-                const __m128i shufmaskandhighbits = _mm_lddqu_si128(reinterpret_cast<const __m128i*>(simple_compress_16bit_to_8bit_lookup[nonascii_pattern]));
-                const __m128i constant_high_nibble = _mm_set1_epi8(0xF0);
-                const __m128i utf8highbits =  _mm_and_si128(shufmaskandhighbits, constant_high_nibble);
-                const __m128i shufmask =  _mm_andnot_si128(constant_high_nibble, shufmaskandhighbits);
-                const __m128i reshuffled = _mm_shuffle_epi8(blendedin, shufmask);
-                const __m128i reshuffledmasked = _mm_andnot_si128(utf8highbits, reshuffled);
-                const __m128i utf8highbitsshifted = _mm_add_epi8(utf8highbits, utf8highbits);
-                const __m128i finaloutput = _mm_or_si128(reshuffledmasked, utf8highbitsshifted);
-                _mm_storeu_si128((__m128i*)output, finaloutput);
-                output += simple_compress_16bit_to_8bit_len[nonascii_pattern];
-            } else {
-                // Having fun yet?
-                // This time we want to convert LLLLLLLL HHHHHHHH
-                // into
-                // - 3 byte character (17 bits):  1110HHHH (4) 10HHHHLL (6) 10LLLLLL (6)
+    const __m128i lt0800 =
+        _mm_cmpeq_epi16(_mm_setzero_si128(),
+                        _mm_and_si128(in, _mm_set1_epi16((int16_t)0xf800)));
 
-                //  HHHHLLLL 0000HHHH (little endian) 
-                size_t idx1 = twobytes_16bit_to_8bit_firstlookup[nonascii_pattern&0xF][istwobytes_pattern&0xF];
-                size_t idx2 = twobytes_16bit_to_8bit_firstlookup[nonascii_pattern>>4][istwobytes_pattern>>4];
-                size_t len1 = twobytes_16bit_to_8bit_len[nonascii_pattern&0xF][istwobytes_pattern&0xF];
-                size_t len2 = twobytes_16bit_to_8bit_len[nonascii_pattern>>4][istwobytes_pattern>>4];
 
-                const __m128i shifthigh4 = _mm_srli_epi16(in, 4);
-                __m128i blended1 = _mm_unpacklo_epi16(blendedin,shifthigh4);                
-                __m128i blended2 = _mm_unpackhi_epi16(blendedin,shifthigh4);
-                const __m128i shufmaskandhighbits1 = _mm_lddqu_si128(reinterpret_cast<const __m128i*>(simple_compress_16bit_to_8bit_finallookup[idx1]));
-                const __m128i shufmaskandhighbits2 = _mm_lddqu_si128(reinterpret_cast<const __m128i*>(simple_compress_16bit_to_8bit_finallookup[idx2]));
-                const __m128i constant_low_nibble = _mm_set1_epi8(0x0F);
-                const __m128i utf8highbits1 =  _mm_andnot_si128(constant_low_nibble,shufmaskandhighbits1);
-                const __m128i utf8highbits2 =  _mm_andnot_si128(constant_low_nibble,shufmaskandhighbits2);
-                const __m128i shufmask1 =  _mm_and_si128(shufmaskandhighbits1, constant_low_nibble);
-                const __m128i shufmask2 =  _mm_and_si128(shufmaskandhighbits2, constant_low_nibble);
-                const __m128i reshuffled1 = _mm_shuffle_epi8(blended1, shufmask1);
-                const __m128i reshuffled2 = _mm_shuffle_epi8(blended2, shufmask2);
-                const __m128i reshuffledmasked1 = _mm_andnot_si128(utf8highbits1, reshuffled1);
-                const __m128i reshuffledmasked2 = _mm_andnot_si128(utf8highbits2, reshuffled2);
-                const __m128i utf8highbitsshifted1 = _mm_add_epi8(utf8highbits1, utf8highbits1);
-                const __m128i utf8highbitsshifted2 = _mm_add_epi8(utf8highbits2, utf8highbits2);
-                const __m128i finaloutput1 = _mm_or_si128(reshuffledmasked1, utf8highbitsshifted1);
-                const __m128i finaloutput2 = _mm_or_si128(reshuffledmasked2, utf8highbitsshifted2);
-                _mm_storeu_si128((__m128i*)output, finaloutput1);
-                output += len1;
-                _mm_storeu_si128((__m128i*)output, finaloutput2);
-                output += len2;
-            }
-        }
+    const uint16_t twobyte_patterns = uint16_t(_mm_movemask_epi8(lt0800));
+    // 2. test for two-byte
+    if (twobyte_patterns == 0xFFFF) {
+
+      // twobyte_patterns
+      // Fast path: values are in range 0x0000 ... 0x07ff
+      // UTF16 codeword is valid and is expanded to either 1 or 2 bytes of UTF8
+
+      // a. for values 00 .. 7f we have transformation (two UTF16 bytes -> one
+      // UTF8 byte):
+      //    [0000|0000|0ccc|dddd] => [0ccc|dddd]
+      // b. for value  0080 .. 07ff we have (two UTF16 bytes -> two UTF8 bytes)
+      //    [0000|0bbb|cccc|dddd] => [110b|bbcc|10cc|dddd]
+
+      // tmp      = [0g0h|0i0j|0k0l|0m0n]
+      // pattern  =           [gkhl|imjn]
+
+      const uint8_t pattern = uint8_t(ascii_patterns | (ascii_patterns >> 7));
+
+      // [0000|0000|0ccc|dddd]
+      const __m128i utf8_1byte = in;
+
+      __m128i byte0;
+      __m128i byte1;
+      __m128i word0;
+
+      byte0 =
+          _mm_and_si128(in, _mm_set1_epi16(0x003f)); // [0000|0000|00cc|dddd]
+      byte1 = _mm_slli_epi16(in, 2);                 // [000b|bbcc|xxxx|xxxx]
+      byte1 = _mm_and_si128(
+          byte1, _mm_set1_epi16((int16_t)0x1f00)); // [000b|bbcc|0000|0000]
+
+      word0 = _mm_or_si128(byte0, byte1); // [000b|bbcc|00cc|dddd]
+
+      // update UTF8 markers:
+      __m128i utf8_2bytes;
+      utf8_2bytes = _mm_or_si128(
+          word0, _mm_set1_epi16((int16_t)0xc080)); // [110b|bbcc|10cc|dddd]
+
+      // keep in 16-bits proper UTF8 variants
+      const __m128i utf8_t0 = _mm_blendv_epi8(utf8_2bytes, utf8_1byte, lt0080);
+
+      // compress zeros from 1-byte words
+      const __m128i lookup =
+          _mm_loadu_si128((const __m128i *)compress_16bit_lookup[pattern]);
+      const __m128i utf8 = _mm_shuffle_epi8(utf8_t0, lookup);
+
+      _mm_storeu_si128((__m128i *)output, utf8);
+      output += compress_16bit_length[pattern];
+      input += 8;
+      continue;
     }
-    // process tail
-    *output ='\0';// for fun
-    return output - start;
+
+    // 3. test if there are any surrogates
+
+    __m128i basicplane =
+        _mm_cmplt_epi16(_mm_sub_epi16(in, _mm_set1_epi16(uint16_t(0x5800))),
+                        _mm_set1_epi16(uint16_t(0x8800)));
+
+    if (_mm_movemask_epi8(basicplane)) {
+
+      // for now only scalar fallback
+      auto save_utf8 = [&output](uint32_t value) {
+        auto save_bytes = [&output](int byte) { *output++ = uint8_t(byte); };
+        encode_utf8(value, save_bytes);
+      };
+
+      bool malformed = false;
+      int consumed = 8;
+      auto on_error = [&consumed, &malformed](const uint16_t *data,
+                                              const uint16_t *current,
+                                              utf16::Error error) {
+        const auto error_pos = (current - data);
+        if (error == utf16::Error::missing_low_surrogate and error_pos == 7)
+          consumed = 7; // hi surrogate at the and of 8-byte block, would
+                        // reprocess it again
+        else
+          malformed = true;
+      };
+
+      utf16::decode(input, 8, save_utf8, on_error);
+      if (malformed)
+        return output - start;
+      else
+        input += consumed;
+
+      continue;
+    }
+    // 4. finally, three-byte pattern
+
+    {
+      const uint16_t patterns = (ascii_patterns) | (twobyte_patterns & 0xaaaa);
+
+      // input in range 0x0000 .. 0xffff
+
+      // 1. prepare UTF8 bytes
+
+      // output 1 UTF8 byte  : [0000|0000|0ccc|dddd] => [0ccc|dddd]
+      // output 2 UTF8 bytes : [0000|0bbb|cccc|dddd] => [110b|bbcc], [10cc|dddd]
+      // output 3 UTF8 bytes : [aaaa|bbbb|cccc|dddd] => [1110|aaaa],
+      // [10bb|bbcc], [10cc|dddd]
+
+      // a. 1 byte code equals to input
+      __m128i word0_1 = in;
+
+      // a. build 2 byte codes
+      __m128i tmp;
+      __m128i byte0_2;
+      __m128i byte1_2;
+      __m128i word0_2;
+
+      // [0000|0bbb|cccc|dddd]
+      byte0_2 =
+          _mm_and_si128(in, _mm_set1_epi16(0x003f)); // [0000|0000|00cc|dddd]
+
+      tmp = _mm_slli_epi32(in, 2); // [000b|bbcc|ccdd|dd00] // reused later
+      byte1_2 =
+          _mm_and_si128(tmp, _mm_set1_epi16(0x1f00)); // [000b|bbcc|0000|0000]
+
+      const __m128i loct0 = _mm_set1_epi16((int16_t)0xc080);
+      word0_2 = _mm_or_si128(byte0_2, byte1_2); // [000b|bbcc|00cc|dddd]
+      word0_2 = _mm_or_si128(word0_2, loct0);   // [110b|bbcc|10cc|dddd]
+
+      // b. build 3 byte codes
+      __m128i byte0_3;
+      __m128i byte1_3;
+      __m128i byte2_3;
+      __m128i word0_3;
+      __m128i word1_3;
+
+      byte0_3 = byte0_2; // reuse from 2-byte case                //
+                         // [0000|0000|00cc|dddd]
+
+      byte1_3 =
+          _mm_and_si128(tmp, _mm_set1_epi16(0x3f00)); // [00bb|bbcc|0000|0000]
+
+      const __m128i t1 = _mm_set1_epi16((int16_t)0x8080);
+      word0_3 = _mm_or_si128(byte0_3, byte1_3); // [00bb|bbcc|00cc|dddd]
+      word0_3 = _mm_or_si128(word0_3, t1);      // [10bb|bbcc|10cc|dddd]
+
+      byte2_3 = _mm_srli_epi16(in, 12);
+      byte2_3 = _mm_or_si128(byte2_3,
+                             _mm_set1_epi16(0x00e0)); // [0000|0000|1110|aaaa]
+      word1_3 = byte2_3;
+
+      word0_1 = _mm_and_si128(lt0080, word0_1);
+
+      const __m128i m2 = _mm_andnot_si128(lt0080, lt0800);
+      word0_2 = _mm_and_si128(m2, word0_2);
+
+      word0_3 = _mm_andnot_si128(lt0800, word0_3);
+      word1_3 = _mm_andnot_si128(lt0800, word1_3);
+
+      // 2. expand 2-byte codes into 4-byte codes, possible dwords:
+      //    - [0000|0000|0000|0000|0000|0000|0ccc|dddd]
+      //    - [0000|0000|0000|0000|110b|bbcc|10cc|dddd]
+      //    - [0000|0000|1110|aaaa|10bb|bbcc|10cc|dddd]
+
+      __m128i word0;
+      __m128i word1;
+      word0 = nonstd::_mm_or_si128(word0_1, word0_2, word0_3);
+      word1 = word1_3;
+
+      __m128i dword_lo = _mm_unpacklo_epi16(word0, word1);
+      __m128i dword_hi = _mm_unpackhi_epi16(word0, word1);
+
+      // 3. compress bytes
+      // a. compress lo dwords
+      {
+        const uint8_t pattern = uint8_t(patterns & 0x00ff);
+        const __m128i lookup =
+            _mm_loadu_si128((const __m128i *)compress_32bit_lookup[pattern]);
+        const __m128i utf8 = _mm_shuffle_epi8(dword_lo, lookup);
+
+        _mm_storeu_si128((__m128i *)output, utf8);
+        output += compress_32bit_length[pattern];
+      }
+
+      // b. compress hi dwords
+      {
+        const uint8_t pattern = uint8_t(patterns >> 8);
+        const __m128i lookup =
+            _mm_loadu_si128((const __m128i *)compress_32bit_lookup[pattern]);
+        const __m128i utf8 = _mm_shuffle_epi8(dword_hi, lookup);
+
+        _mm_storeu_si128((__m128i *)output, utf8);
+        output += compress_32bit_length[pattern];
+      }
+      input += 8;
+    }
+  }
+
+  // process tail
+  return output - start;
 }
 
 // This method asserts that utf8 input is valid
@@ -415,7 +528,7 @@ size_t sse_convert_valid_utf8_to_utf16_wmu(const uint8_t* input, size_t size, ui
         const uint16_t input_bit6 = _mm_movemask_epi8(_mm_add_epi8(in, in));
 
         // 2. now use lower helves of these two masks (input_bit{6,7}) to get proper data
-        const uint16_t index = (input_bit7 << 8) | (input_bit6 & 0x00ff);
+        const uint16_t index = uint16_t(input_bit7 << 8) | uint16_t(input_bit6 & 0x00ff);
 
         using namespace utf8_to_utf16;
         const Parameters& params = parameters[lookup[index]];

@@ -26,12 +26,6 @@ src/sse_16bit_lookup.cpp: scripts/sse_compress_16bit_words.py
 src/sse_32bit_lookup.cpp: scripts/sse_compress_32bit_words.py
 	./scripts/sse_compress_32bit_words.py > src/sse_32bit_lookup.cpp 
 
-src/sse_utf16_to_utf8_simple.cpp : scripts/sse_utf16_to_utf8_simple.py
-	./scripts/sse_utf16_to_utf8_simple.py > src/sse_utf16_to_utf8_simple.cpp
-
-src/sse_utf16_to_utf8_twobytes.cpp: src/sse_utf16_to_utf8_twobytes.cpp
-	./sse_utf16_to_utf8_threebytes.py > ../src/sse_utf16_to_utf8_twobytes.cpp
-
 src/sse_utf8_to_utf16.cpp: scripts/sse_utf8_to_utf16.py
 	./scripts/sse_utf8_to_utf16.py src/sse_utf8_to_utf16.cpp
 
