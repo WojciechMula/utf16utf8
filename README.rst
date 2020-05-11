@@ -7,6 +7,7 @@ Conversion from UTF16 into UTF8
 
 To do
 ------
+* Benchmark against iconv
 
 * UTF-16 decoder should take BOM
 * UTF-8 decoder should be able to generate a BOM and support BE/LE

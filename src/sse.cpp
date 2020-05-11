@@ -513,7 +513,7 @@ size_t sse_convert_valid_utf8_to_utf16_wmu(const uint8_t* input, size_t size, ui
         const __m128i in = _mm_loadu_si128((__m128i*)input);
 
         // 0. gather MSB (7th bits)
-        const uint16_t input_bit7 = _mm_movemask_epi8(in);
+        const uint16_t input_bit7 = uint16_t(_mm_movemask_epi8(in));
 
         if (input_bit7 == 0) {
             // fast path: ASCII
@@ -525,7 +525,7 @@ size_t sse_convert_valid_utf8_to_utf16_wmu(const uint8_t* input, size_t size, ui
         }
 
         // 1. gather 6th bits
-        const uint16_t input_bit6 = _mm_movemask_epi8(_mm_add_epi8(in, in));
+        const uint16_t input_bit6 = uint16_t(_mm_movemask_epi8(_mm_add_epi8(in, in)));
 
         // 2. now use lower helves of these two masks (input_bit{6,7}) to get proper data
         const uint16_t index = uint16_t(input_bit7 << 8) | uint16_t(input_bit6 & 0x00ff);
@@ -546,7 +546,42 @@ size_t sse_convert_valid_utf8_to_utf16_wmu(const uint8_t* input, size_t size, ui
     }
 }
 
+namespace {
+#include "reference.h"
 
+
+static size_t strlen_utf8_to_utf16_with_length(const uint8_t *str, size_t len)
+{
+	size_t i, count;
+	uint32_t c;
+
+	for (i=0, count=0;i < len; i++)
+	{
+
+		c = utf8_to_unicode32(&str[i], &i);
+		count += codepoint_utf16_size(c);
+	}
+	return count;
+}
+
+
+
+void utf8_to_utf16_with_length(const uint8_t *utf8, size_t len, uint16_t *utf16)
+{
+	int j;
+	uint32_t c;
+    size_t i;
+
+
+	for (i=0, j=0, c=1; i < len; i++)
+	{
+		c = utf8_to_unicode32(&utf8[i], &i);
+		sprint_utf16(&utf16[j], c);
+		j += codepoint_utf16_size(c);
+	}
+}
+}
+#include <stdio.h>
 
 size_t sse_convert_valid_utf8_to_utf16_lemire(const uint8_t* input, size_t size, uint16_t* output) {
 
@@ -555,11 +590,12 @@ size_t sse_convert_valid_utf8_to_utf16_lemire(const uint8_t* input, size_t size,
   while (pos + 16 <= size) {
     //////////////////////////////
     // Can go faster if we grab large
-    // blocks of data, most larger than
+    // blocks of data, larger than
     // 16 bytes.
     //////////////////////////////
     const __m128i in = _mm_loadu_si128((__m128i *)(input + pos));
     const uint16_t non_ascii_chars = uint16_t(_mm_movemask_epi8(in));
+    // ASCII is likely common in many cases, we want a fast path.
     if(non_ascii_chars == 0) {
         // could use _mm_cvtepi8_epi16
         const __m128i out1 = _mm_unpacklo_epi8(in, _mm_setzero_si128());// order of parameter determines endianness
@@ -571,32 +607,46 @@ size_t sse_convert_valid_utf8_to_utf16_lemire(const uint8_t* input, size_t size,
         pos += 16;
         continue;
     }
+    const __m128i maxtwobyte = _mm_set1_epi8(uint8_t(0xdf));
+    uint16_t istwobytes = uint16_t(_mm_movemask_epi8(_mm_cmpeq_epi8(_mm_max_epu8(maxtwobyte, in), maxtwobyte)));
+    // The most significant 4 bits (high nibble) can be used to classify the bytes, as
+    // to whether they start a new code point.
     const __m128i hn = _mm_set1_epi8(uint8_t(0xF));
     const __m128i in_high_nibbles = _mm_and_si128(hn, _mm_srli_epi16(in, 4));
     //const __m128i masks = _mm_shuffle_epi8(_mm_set_epi8(0xf0, 0xe0, 0xc0, 0xc0, 0x80, 0x80, 0x80, 0x80, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0), in_high_nibbles);
     const uint16_t start_of_chars = uint16_t(_mm_movemask_epi8(_mm_shuffle_epi8(_mm_set_epi8(0xff, 0xff, 0xff, 0xff, 0x0, 0x0, 0x0, 0x0, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff), in_high_nibbles)));
+    // We want to spot the easy two-byte scenario, it is easy! Just 
+    // do a little comparison.
+    if(istwobytes == 0xFFFF) {
+        // this is a relatively easy scenario
+    }
+
 
 
 	// combine index and bytes consumed into a single lookup
-	index_bytes_consumed combined = combined_lookup[start_of_chars];
-	uint64_t consumed = combined.bytes_consumed;
-	uint8_t index = combined.index;
+//	index_bytes_consumed combined = combined_lookup[start_of_chars];
+//	uint64_t consumed = combined.bytes_consumed;
+//	uint8_t index = combined.index;
 
-	__m128i shuffle_vector = vectors[index];
+//	__m128i shuffle_vector = vectors[index];
     /// Then we must detect the case where all UTF8 code points
     /// span at most two bytes.
-        const __m128i bytes_to_decode = _mm_shuffle_epi8(shuffle_vector,in);
-		__m128i low_bytes = _mm_and_si128(bytes_to_decode,
-				_mm_set1_epi16(0x007F));
-		__m128i high_bytes = _mm_and_si128(bytes_to_decode,
-				_mm_set1_epi16(0x1F00));//110xxxxx
-		__m128i high_bytes_shifted = _mm_srli_epi16(high_bytes, 2);
-        __m128i packed_result = _mm_or_si128(low_bytes, high_bytes_shifted);
+      //  const __m128i bytes_to_decode = _mm_shuffle_epi8(shuffle_vector,in);
+	//	__m128i low_bytes = _mm_and_si128(bytes_to_decode,
+	//			_mm_set1_epi16(0x007F));
+	//	__m128i high_bytes = _mm_and_si128(bytes_to_decode,
+	//			_mm_set1_epi16(0x1F00));//110xxxxx
+	//	__m128i high_bytes_shifted = _mm_srli_epi16(high_bytes, 2);
+  //      __m128i packed_result = _mm_or_si128(low_bytes, high_bytes_shifted);
 
     /// Then we must detect the case where all UTF8 code points
     /// span at most three bytes.
-put the location of the third byte in the high bits of shuffle_vector
+//put the location of the third byte in the high bits of shuffle_vector
     /// Finally, we have to deal  with 4-byte cases.
   }
+  size_t len = strlen_utf8_to_utf16_with_length(input + pos, size - pos);
+  utf8_to_utf16_with_length(input + pos, size - pos, output);
+  output += len;
+  return output - start;
 }
 

@@ -2,11 +2,11 @@ FLAGS=-Wall -Wextra -Wpedantic -std=c++14 -O3 -Wfatal-errors -Wsign-compare -Wsh
 
 all: unittest benchmark
 
-unittest: tests/unittest.cpp include/reference.h sse.o random_utf16.o scalar_utf16.o
-	$(CXX) $(FLAGS) random_utf16.o scalar_utf16.o sse.o tests/unittest.cpp -o unittest -Iinclude
+unittest: tests/unittest.cpp include/reference.h sse.o random_utf16.o scalar_utf16.o random_utf8.o
+	$(CXX) $(FLAGS) random_utf16.o random_utf8.o scalar_utf16.o sse.o tests/unittest.cpp -o unittest -Iinclude
 
-benchmark: benchmarks/benchmark.h benchmarks/benchmark.cpp sse.o random_utf16.o scalar_utf16.o
-	$(CXX) $(FLAGS) random_utf16.o scalar_utf16.o sse.o benchmarks/benchmark.cpp -o benchmark -Iinclude -Ibenchmark
+benchmark: benchmarks/benchmark.h benchmarks/benchmark.cpp sse.o random_utf16.o scalar_utf16.o random_utf8.o
+	$(CXX) $(FLAGS) random_utf16.o random_utf8.o scalar_utf16.o sse.o benchmarks/benchmark.cpp -o benchmark -Iinclude -Ibenchmark
 
 random_utf16.o: include/random_utf16.h src/random_utf16.cpp
 	$(CXX) $(FLAGS)  -c src/random_utf16.cpp  -Iinclude
