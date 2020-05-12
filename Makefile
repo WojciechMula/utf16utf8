@@ -17,7 +17,7 @@ random_utf8.o: include/random_utf8.h src/random_utf8.cpp
 scalar_utf16.o: include/scalar_utf16.h src/scalar_utf16.cpp
 	$(CXX) $(FLAGS) -c src/scalar_utf16.cpp -Iinclude
 
-sse.o: include/sse.h src/sse.cpp src/sse_16bit_lookup.cpp src/sse_32bit_lookup.cpp src/sse_utf8_to_utf16.cpp include/scalar_utf8.h include/scalar_utf16.h
+sse.o: include/sse.h src/sse.cpp src/sse_16bit_lookup.cpp src/sse_32bit_lookup.cpp src/sse_utf8_to_utf16.cpp include/scalar_utf8.h  src/sse_utf8_decoder_twobytes.cpp include/scalar_utf16.h
 	$(CXX) $(FLAGS) -c src/sse.cpp -Iinclude
 
 src/sse_16bit_lookup.cpp: scripts/sse_compress_16bit_words.py
@@ -27,7 +27,10 @@ src/sse_32bit_lookup.cpp: scripts/sse_compress_32bit_words.py
 	./scripts/sse_compress_32bit_words.py > src/sse_32bit_lookup.cpp 
 
 src/sse_utf8_to_utf16.cpp: scripts/sse_utf8_to_utf16.py
-	./scripts/sse_utf8_to_utf16.py src/sse_utf8_to_utf16.cpp
+	./scripts/sse_utf8_to_utf16.py > src/sse_utf8_to_utf16.cpp
+
+src/sse_utf8_decoder_twobytes.cpp:scripts/sse_utf8_utf16_decode.py
+	./scripts/sse_utf8_utf16_decode.py > src/sse_utf8_decoder_twobytes.cpp
 
 clean:
 	rm -f random_utf16.o scalar_utf16.o   sse.o    unittest benchmark 

@@ -89,26 +89,76 @@ def main():
         thirdcase.add(tuple(z1))
   easycasesorted = [x for x in easycase]
   easycasesorted.sort()
+  c = 0
+  index = {}
+  for t in easycasesorted:
+      index[t] = c
+      c = c + 1
   thirdcasesorted = [x for x in thirdcase]
   thirdcasesorted.sort()
   print(len(easycase))
   print(len(thirdcase))
 
 
+## check that we have 8 1-2 byte
+def easy_case12(code_point_size):
+    if(len(code_point_size)<6):
+        return False
+    return max(code_point_size[:6])<=2
+
+
+def grab_easy_case12_code_point_size(code_point_size):
+    return code_point_size[:6]
+
+def buildshuf12_twobytes(sizes):
+    answer = [0 for i in range(16)]
+    pos = 0
+    for i in range(len(sizes)):
+        if(sizes[i] == 1):
+            answer[2*i] = pos
+            answer[2*i+1] = 0xFF
+            pos += 1
+        else:
+            answer[2*i] = pos + 1
+            answer[2*i+1] = pos
+            pos += 2
+    return answer
+
+
+
+def main12():
+  easycase12 = set()
+  for x in range(1<<11):
+    sizes = compute_code_point_size(x)
+    if(easy_case12(sizes)):
+        z1 = grab_easy_case12_code_point_size(sizes)
+        easycase12.add(tuple(z1))
+  easycase12sorted = [x for x in easycase12]
+  easycase12sorted.sort()
+  #print(easycase12sorted)
+  print("#include <cstdint>")
+  print("const uint8_t shufutf8twobytes["+str(len(easycase12sorted))+"][16] = ")
+  print(cpp_arrayarray_initializer([buildshuf12_twobytes(z) for z in  easycase12sorted]), end=";\n")
+  c = 0
+  index = {}
+  for t in easycase12sorted:
+      index[t] = c
+      c = c + 1
+  arrg=[]
+  for x in range(1<<11):
+    sizes = compute_code_point_size(x)
+    if(easy_case12(sizes)):
+        z1 = grab_easy_case12_code_point_size(sizes)
+        idx = index[tuple(z1)]
+        s = sum(z1)
+        arrg.append((idx,s))
+    else:
+        arrg.append((0,0))
+  print("const uint8_t utf8twobytesbigindex["+str(len(arrg))+"][2] = ")
+  print(cpp_arrayarray_initializer(arrg), end=";\n")
+
+
+
 
 if __name__ == '__main__':
-    main()
-
-
-    #elif(reject(sizes)):
-    #    category = "invalid"
-    #else:
-    #    category = "fallback"
-    #print(bin(x),compute_code_point_size(x), category)
-    
-
-
-
-#print(easycasesorted)
-#print(thirdcasesorted)
-#def categorize(mask15):
+    main12()

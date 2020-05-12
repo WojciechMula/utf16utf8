@@ -191,7 +191,7 @@ bool validate_no_surrogates_from_utf8() {
     std::random_device rd{};
     RandomUTF8 generator(rd,
         /* 1 byte */  1,
-        /* 2 bytes */ 0, //1,
+        /* 2 bytes */ 1, //1,
         /* 3 bytes */ 0,//1,
         /* 4 bytes */ 0
     );
