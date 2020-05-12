@@ -236,19 +236,18 @@ static inline uint16_t *sprint_utf16(uint16_t *str, uint32_t c)	// str must be a
 		return NULL;
 
 	c_size = codepoint_utf16_size(c);
-
 	switch (c_size)
 	{
 		case 1:
-			str[0] = uint8_t(c);
+			str[0] = uint16_t(c);
 			if (c > 0)
 				str[1] = '\0';
 			break;
 
 		case 2:
 			c -= 0x10000;
-			str[0] = uint8_t(0xD800 + (c >> 10));
-			str[1] = uint8_t(0xDC00 + (c & 0x3FF));
+			str[0] = uint16_t(0xD800 + (c >> 10));
+			str[1] = uint16_t(0xDC00 + (c & 0x3FF));
 			str[2] = '\0';
 			break;
 

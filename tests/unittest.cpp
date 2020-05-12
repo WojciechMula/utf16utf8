@@ -42,7 +42,7 @@ bool compare_strings(const std::string& reference, const std::string& result) {
 template <class T>
 void display(const std::vector<T>& input) {
     for(size_t i = 0; i < input.size(); i++) {
-        std::cout << input[i] << " ";
+        std::cout << (unsigned) input[i] << " ";
     }
     std::cout << "\n";
 
@@ -156,7 +156,7 @@ bool validate_all() {
 }
 
 
-bool validate_from_utf8(const std::vector<uint8_t>& input) {
+bool validate_from_utf8(std::vector<uint8_t>& input) {
     size_t actual_length = input.size();
     for(size_t i = 0; i < input.size(); i++) {
         if(input[i] ==0) {
@@ -179,24 +179,43 @@ bool validate_from_utf8(const std::vector<uint8_t>& input) {
 
     if( sse != reference ) {
         printf("input:");display<uint8_t>(input);
-        printf("ref:");display<uint16_t>(reference);
-        printf("sse:");display<uint16_t>(sse);
+        printf("ref  :");display<uint16_t>(reference);
+        printf("sse  :");display<uint16_t>(sse);
         printf("BUG\n");
         return false;
     }
     return true;
 }
+bool validate_onetwobytes_from_utf8() {
+    puts("Test transcoding random string from utf8 (one/two bytes)");
+    std::random_device rd{};
+    RandomUTF8 generator(rd,
+        /* 1 byte */  1,
+        /* 2 bytes */ 1, 
+        /* 3 bytes */ 0,
+        /* 4 bytes */ 0
+    );
+    for(size_t t = 0; t < 10000; t++) {
+      auto UTF8 = generator.generate(16);
+      if(!validate_from_utf8(UTF8)) {
+          return false;
+      }
+    }
+    return true;
+}
+
+
 bool validate_no_surrogates_from_utf8() {
     puts("Test transcoding random string from utf8 (without surrogates)");
     std::random_device rd{};
     RandomUTF8 generator(rd,
         /* 1 byte */  1,
-        /* 2 bytes */ 1, //1,
-        /* 3 bytes */ 0,//1,
+        /* 2 bytes */ 1,
+        /* 3 bytes */ 1,
         /* 4 bytes */ 0
     );
     for(size_t t = 0; t < 10000; t++) {
-      const auto UTF8 = generator.generate(16);
+      auto UTF8 = generator.generate(16);
       if(!validate_from_utf8(UTF8)) {
           return false;
       }
@@ -205,7 +224,7 @@ bool validate_no_surrogates_from_utf8() {
 }
 int main() {
 
-    if(!validate_no_surrogates_from_utf8())
+    if(!validate_onetwobytes_from_utf8())
         return EXIT_FAILURE;
 
     if (!validate_all())

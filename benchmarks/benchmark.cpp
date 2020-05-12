@@ -1,17 +1,19 @@
 #include "benchmark.h"
 #include "sse.h"
 #include "random_utf16.h"
+#include "random_utf8.h"
 #include "reference.h"
 
-class Benchamark {
+class Benchmark {
 
     size_t size;
     std::random_device rd{};
 
 public:
-    Benchamark(const size_t tsize) : size(tsize) {}
+    Benchmark(const size_t tsize) : size(tsize) {}
 
     void run() {
+        printf("Running UTF16 => UTF8 benchmark.\n");
         const size_t repeat = 10000;
         RandomUTF16 gen_1byte (rd, 1, 0, 0, 0);
         RandomUTF16 gen_2bytes(rd, 0, 1, 0, 0);
@@ -22,7 +24,7 @@ public:
         RandomUTF16 anylength (rd, 1, 1, 1, 1);
 
         printf("\n");
-        printf("Input size: %lu\n", size);
+        printf("Input size: (UTF16) %lu\n", size);
 
         puts("- Output ASCII characters");
         run(gen_1byte, repeat);
@@ -34,6 +36,8 @@ public:
         run(gen_3bytes, repeat);
 
         //puts("- Output exactly 4 UTF8 bytes");
+        // Given that we do not optimize this case at
+        // all, it is not a relevant benchmark.
         //run(gen_4bytes, repeat);
 
         puts("- Output 1 or 2 UTF8 bytes");
@@ -42,8 +46,9 @@ public:
         puts("- Output 1, 2 or 3 UTF8 bytes");
         run(gen_1_2_3, repeat);
 
-        puts("- Output 1, 2, 3 or 4 UTF8 bytes");
-        run(anylength, repeat);
+        // Results from this benchmark appear bogus: SSE is too fast!!!
+        //puts("- Output 1, 2, 3 or 4 UTF8 bytes");
+        //run(anylength, repeat);
     }
 
 
@@ -51,10 +56,10 @@ public:
 
         const auto UTF16 = generator.generate(size);
 
-        std::string scalar_out;
-        std::string sse_out;
-        scalar_out.reserve(4 * size + 32);
-        sse_out.reserve(4 * size + 32);
+        std::vector<uint8_t> scalar_out;
+        std::vector<uint8_t> sse_out;
+        scalar_out.resize(4 * size + 32);
+        sse_out.resize(4 * size + 32);
 
         auto scalar = [&UTF16, &scalar_out]() {
             utf16_to_utf8(UTF16.data(), (uint8_t*)scalar_out.data());
@@ -64,7 +69,7 @@ public:
             sse_convert_utf16_to_utf8(UTF16.data(), size, (uint8_t*)sse_out.data());
         };
 
-        auto sse_hybrid= [&generator, &UTF16, &sse_out, size=size]() {
+        auto sse_hybrid= [&UTF16, &sse_out, size=size]() {
             sse_convert_utf16_to_utf8_hybrid(UTF16.data(), size, (uint8_t*)sse_out.data());
         };
 #define RUN(name, procedure) \
@@ -76,13 +81,62 @@ public:
 
     }
 
+
+    void run_from_utf8() {
+        printf("Running UTF8 => UTF16 benchmark.\n");
+        const size_t repeat = 10000;
+        RandomUTF8 gen_1byte (rd, 1, 0, 0, 0);
+        RandomUTF8 gen_2bytes(rd, 0, 1, 0, 0);
+        RandomUTF8 gen_1_2(rd, 1, 1, 0, 0);
+
+        printf("\n");
+        printf("Input size: (UTF8) %lu\n", size);
+
+        puts("- Output ASCII characters");
+        run_from_utf8(gen_1byte, repeat);
+
+        puts("- Output exactly 2 UTF8 bytes");
+        run_from_utf8(gen_2bytes, repeat);
+
+        puts("- Output 1 or 2 UTF8 bytes");
+        run_from_utf8(gen_1_2, repeat);
+
+    }
+
+
+    void run_from_utf8(RandomUTF8& generator, size_t repeat) {
+
+        const auto UTF8 = generator.generate(size);
+
+        std::vector<uint16_t> scalar_out;
+        std::vector<uint16_t> sse_out;
+        scalar_out.resize(4 * size + 32);
+        sse_out.resize(4 * size + 32);
+
+        auto scalar = [&UTF8, &scalar_out]() {
+            utf8_to_utf16(UTF8.data(), scalar_out.data());
+        };
+
+        auto sse = [&UTF8, &sse_out, size=size]() {
+            sse_convert_valid_utf8_to_utf16_lemire(UTF8.data(), size, sse_out.data());
+        };
+
+#define RUN(name, procedure) \
+    BEST_TIME(/**/, procedure(), name, repeat, size);
+
+        RUN("scalar", scalar);
+        RUN("SSE",    sse);
+
+    }
+
 };
 
 int main() {
     // todo: Daniel finds the endless stream of numbers too much
     std::vector<size_t> input_size{4096};//256 , 512, 1024, 2048, 4096};
     for (const size_t size: input_size) {
-        Benchamark bench(size);
+        Benchmark bench(size);
         bench.run();
+        bench.run_from_utf8();
     }
 }
