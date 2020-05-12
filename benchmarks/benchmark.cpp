@@ -3,6 +3,9 @@
 #include "random_utf16.h"
 #include "random_utf8.h"
 #include "reference.h"
+#ifdef __linux__
+#include "linux-perf-events.h"
+#endif
 
 class Benchmark {
 
@@ -15,7 +18,7 @@ public:
     void run() {
         printf("\n");
         printf("Running UTF16 => UTF8 benchmark.\n");
-        printf("The speed is normalized by the number of UTF16 code points.\n");
+        printf("The speed is normalized by the number of code points.\n");
 
         const size_t repeat = 10000;
         RandomUTF16 gen_1byte (rd, 1, 0, 0, 0);
@@ -87,7 +90,7 @@ public:
     void run_from_utf8() {
         printf("\n");
         printf("Running UTF8 => UTF16 benchmark.\n");
-        printf("The speed is normalized by the number of UTF8 code points.\n");
+        printf("The speed is normalized by the number of code points.\n");
         const size_t repeat = 10000;
         RandomUTF8 gen_1byte (rd, 1, 0, 0, 0);
         RandomUTF8 gen_2bytes(rd, 0, 1, 0, 0);
