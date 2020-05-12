@@ -13,7 +13,10 @@ public:
     Benchmark(const size_t tsize) : size(tsize) {}
 
     void run() {
+        printf("\n");
         printf("Running UTF16 => UTF8 benchmark.\n");
+        printf("The speed is normalized by the number of UTF16 code points.\n");
+
         const size_t repeat = 10000;
         RandomUTF16 gen_1byte (rd, 1, 0, 0, 0);
         RandomUTF16 gen_2bytes(rd, 0, 1, 0, 0);
@@ -23,7 +26,6 @@ public:
         RandomUTF16 gen_1_2_3(rd, 1, 1, 1, 0);
         RandomUTF16 anylength (rd, 1, 1, 1, 1);
 
-        printf("\n");
         printf("Input size: (UTF16) %lu\n", size);
 
         puts("- Output ASCII characters");
@@ -83,13 +85,14 @@ public:
 
 
     void run_from_utf8() {
+        printf("\n");
         printf("Running UTF8 => UTF16 benchmark.\n");
+        printf("The speed is normalized by the number of UTF8 code points.\n");
         const size_t repeat = 10000;
         RandomUTF8 gen_1byte (rd, 1, 0, 0, 0);
         RandomUTF8 gen_2bytes(rd, 0, 1, 0, 0);
         RandomUTF8 gen_1_2(rd, 1, 1, 0, 0);
 
-        printf("\n");
         printf("Input size: (UTF8) %lu\n", size);
 
         puts("- Output ASCII characters");
