@@ -3,9 +3,7 @@
 #include "random_utf16.h"
 #include "random_utf8.h"
 #include "reference.h"
-#ifdef __linux__
-#include "linux-perf-events.h"
-#endif
+#include "event_counter.h"
 
 class Benchmark {
 
@@ -77,13 +75,28 @@ public:
         auto sse_hybrid= [&UTF16, &sse_out, size=size]() {
             sse_convert_utf16_to_utf8_hybrid(UTF16.data(), size, (uint8_t*)sse_out.data());
         };
+#define RUNINS( procedure) \
+        {\
+        event_collector collector;\
+        event_aggregate all{};\
+        for(size_t i = 0; i < repeat; i++) {\
+          collector.start();\
+          procedure();\
+          event_count allocate_count = collector.end();\
+          all << allocate_count;\
+        }\
+        double freq = (all.best.cycles() / all.best.elapsed_sec()) / 1000000000.0;\
+        double insperunit = all.best.instructions() / double(size);\
+        double gbs = double(size) * double(sizeof(sse_out[0])) / all.best.elapsed_ns();\
+        printf("                               %8.3f ins/codepoint, %8.3f GHz, %8.3f GB/s \n", insperunit, freq, gbs);\
+        }
 #define RUN(name, procedure) \
-    BEST_TIME(/**/, procedure(), name, repeat, size);
+    BEST_TIME(/**/, procedure(), name, repeat, size);\
+    RUNINS(procedure)
 
         RUN("scalar", scalar);
         RUN("SSE",    sse);
         RUN("SSEH",   sse_hybrid);
-
     }
 
 
@@ -126,9 +139,6 @@ public:
         auto sse = [&UTF8, &sse_out, size=size]() {
             sse_convert_valid_utf8_to_utf16_lemire(UTF8.data(), size, sse_out.data());
         };
-
-#define RUN(name, procedure) \
-    BEST_TIME(/**/, procedure(), name, repeat, size);
 
         RUN("scalar", scalar);
         RUN("SSE",    sse);

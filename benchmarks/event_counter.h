@@ -30,7 +30,6 @@
 #include <libgen.h>
 #endif
 
-#include "simdjson.h"
 
 using std::string;
 using std::vector;
@@ -133,13 +132,13 @@ struct event_collector {
   }
 #endif
 
-  really_inline void start() {
+  inline void start() {
 #if defined(__linux)
     linux_events.start();
 #endif
     start_clock = steady_clock::now();
   }
-  really_inline event_count& end() {
+  inline event_count& end() {
     time_point<steady_clock> end_clock = steady_clock::now();
 #if defined(__linux)
     linux_events.end(count.event_counts);
