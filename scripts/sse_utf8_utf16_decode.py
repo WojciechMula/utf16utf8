@@ -2,33 +2,6 @@
 from common import *
 
 
-# So we are going to receive a 15-bit mask which
-# represents a 16-bit mask with a 1-bit in the least
-# significant bit
-#
-# The 1-bit match the start of a code point.
-# The code points can span 1,2,3,4 bytes.
-#
-# Logically, the least signifit bit should have
-# value 1.
-#
-# We output UTF16 values (2 bytes each).
-# 
-# In the "easy" cases, each code point spans 1 or 2
-# bytes in UTF8. In such cases, we can take part of
-# an 16-byte input (between 8 and 16) and output exactly 
-# 16 bytes in UTF16. Easy.
-# 
-# In the harder part, we have all code points use between
-# 1 to 3 bytes. In such cases, we may only be able to
-# output 10 bytes (5 UTF16 code points.).
-#
-# If we detect longer code points, then we must bail out.
-#
-# To avoid stalling the processor, we need to return both
-# the number of bytes consumed as well as a classification index.
-
-
 def is_bit_set(mask, i):
     return (mask & ( 1<<i )) == ( 1<<i )
 
@@ -53,8 +26,6 @@ def compute_code_point_size(mask):
         answer.append(x-oldx)
         oldx = x
     return answer
-
-## We have here a new section that processes fewer bits
 
 ## check that we have 8 1-2 byte
 def easy_case12(code_point_size):

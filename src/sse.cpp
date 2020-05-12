@@ -7,8 +7,9 @@
 #include "scalar_utf16.h"
 #include "sse_16bit_lookup.cpp"
 #include "sse_32bit_lookup.cpp"
-#include "sse_utf8_to_utf16.cpp"
+//#include "sse_utf8_to_utf16.cpp"
 #include "sse_utf8_decoder_twobytes.cpp"
+#include "reference.h"
 
 namespace nonstd {
 
@@ -505,7 +506,7 @@ size_t sse_convert_utf16_to_utf8_hybrid(const uint16_t *input, size_t size,
 }
 
 // This method asserts that utf8 input is valid
-size_t sse_convert_valid_utf8_to_utf16_wmu(const uint8_t* input, size_t size, uint16_t* output) {
+/*size_t sse_convert_valid_utf8_to_utf16_wmu(const uint8_t* input, size_t size, uint16_t* output) {
     
     const uint8_t* end = input + size - 8;
     const __m128i zero = _mm_setzero_si128();
@@ -545,43 +546,8 @@ size_t sse_convert_valid_utf8_to_utf16_wmu(const uint8_t* input, size_t size, ui
        
 
     }
-}
+} */
 
-namespace {
-#include "reference.h"
-
-
-static size_t strlen_utf8_to_utf16_with_length(const uint8_t *str, size_t len)
-{
-	size_t i, count;
-	uint32_t c;
-
-	for (i=0, count=0;i < len; i++)
-	{
-
-		c = utf8_to_unicode32(&str[i], &i);
-		count += codepoint_utf16_size(c);
-	}
-	return count;
-}
-
-
-
-void utf8_to_utf16_with_length(const uint8_t *utf8, size_t len, uint16_t *utf16)
-{
-	int j;
-	uint32_t c;
-    size_t i;
-
-
-	for (i=0, j=0, c=1; i < len; i++)
-	{
-		c = utf8_to_unicode32(&utf8[i], &i);
-		sprint_utf16(&utf16[j], c);
-		j += codepoint_utf16_size(c);
-	}
-}
-}
 
 size_t sse_convert_valid_utf8_to_utf16_lemire(const uint8_t* input, size_t size, uint16_t* output) {
   size_t pos = 0;

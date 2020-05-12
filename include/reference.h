@@ -337,3 +337,34 @@ static inline uint8_t *utf16_to_utf8(const uint16_t *utf16, uint8_t *utf8)
 	return utf8;
 }
 
+
+static size_t strlen_utf8_to_utf16_with_length(const uint8_t *str, size_t len)
+{
+	size_t i, count;
+	uint32_t c;
+
+	for (i=0, count=0;i < len; i++)
+	{
+
+		c = utf8_to_unicode32(&str[i], &i);
+		count += codepoint_utf16_size(c);
+	}
+	return count;
+}
+
+
+
+static void utf8_to_utf16_with_length(const uint8_t *utf8, size_t len, uint16_t *utf16)
+{
+	int j;
+	uint32_t c;
+    size_t i;
+
+
+	for (i=0, j=0, c=1; i < len; i++)
+	{
+		c = utf8_to_unicode32(&utf8[i], &i);
+		sprint_utf16(&utf16[j], c);
+		j += codepoint_utf16_size(c);
+	}
+}
