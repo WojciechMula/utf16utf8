@@ -338,7 +338,7 @@ static inline uint8_t *utf16_to_utf8(const uint16_t *utf16, uint8_t *utf8)
 }
 
 
-static size_t strlen_utf8_to_utf16_with_length(const uint8_t *str, size_t len)
+static inline size_t strlen_utf8_to_utf16_with_length(const uint8_t *str, size_t len)
 {
 	size_t i, count;
 	uint32_t c;
@@ -354,7 +354,7 @@ static size_t strlen_utf8_to_utf16_with_length(const uint8_t *str, size_t len)
 
 
 
-static void utf8_to_utf16_with_length(const uint8_t *utf8, size_t len, uint16_t *utf16)
+static inline void utf8_to_utf16_with_length(const uint8_t *utf8, size_t len, uint16_t *utf16)
 {
 	int j;
 	uint32_t c;
