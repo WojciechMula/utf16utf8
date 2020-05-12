@@ -16,7 +16,7 @@ public:
     void run() {
         printf("\n");
         printf("Running UTF16 => UTF8 benchmark.\n");
-        printf("The speed is normalized by the number of code points.\n");
+        printf("The speed is normalized by the number of input bytes.\n");
 
         const size_t repeat = 10000;
         RandomUTF16 gen_1byte (rd, 1, 0, 0, 0);
@@ -58,6 +58,9 @@ public:
     void run(RandomUTF16& generator, size_t repeat) {
 
         const auto UTF16 = generator.generate(size);
+        size_t codepoints = UTF16.size();
+        size_t volume = UTF16.size() * sizeof(UTF16[0]);
+
 
         std::vector<uint8_t> scalar_out;
         std::vector<uint8_t> sse_out;
@@ -86,8 +89,8 @@ public:
           all << allocate_count;\
         }\
         double freq = (all.best.cycles() / all.best.elapsed_sec()) / 1000000000.0;\
-        double insperunit = all.best.instructions() / double(size);\
-        double gbs = double(size) * double(sizeof(sse_out[0])) / all.best.elapsed_ns();\
+        double insperunit = all.best.instructions() / double(codepoints);\
+        double gbs = double(volume) / all.best.elapsed_ns();\
         if(collector.has_events()) {\
          printf("                               %8.3f ins/codepoint, %8.3f GHz, %8.3f GB/s \n", insperunit, freq, gbs);\
         } else {\
@@ -107,7 +110,7 @@ public:
     void run_from_utf8() {
         printf("\n");
         printf("Running UTF8 => UTF16 benchmark.\n");
-        printf("The speed is normalized by the number of code points.\n");
+        printf("The speed is normalized by the number of input bytes.\n");
         const size_t repeat = 10000;
         RandomUTF8 gen_1byte (rd, 1, 0, 0, 0);
         RandomUTF8 gen_2bytes(rd, 0, 1, 0, 0);
@@ -130,6 +133,10 @@ public:
     void run_from_utf8(RandomUTF8& generator, size_t repeat) {
 
         const auto UTF8 = generator.generate(size);
+        size_t codepoints = UTF8.size();
+        size_t volume = UTF8.size() * sizeof(UTF8[0]);
+
+
 
         std::vector<uint16_t> scalar_out;
         std::vector<uint16_t> sse_out;
