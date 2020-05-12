@@ -88,7 +88,11 @@ public:
         double freq = (all.best.cycles() / all.best.elapsed_sec()) / 1000000000.0;\
         double insperunit = all.best.instructions() / double(size);\
         double gbs = double(size) * double(sizeof(sse_out[0])) / all.best.elapsed_ns();\
-        printf("                               %8.3f ins/codepoint, %8.3f GHz, %8.3f GB/s \n", insperunit, freq, gbs);\
+        if(collector.has_events()) {\
+         printf("                               %8.3f ins/codepoint, %8.3f GHz, %8.3f GB/s \n", insperunit, freq, gbs);\
+        } else {\
+         printf("                               %8.3f GB/s \n", gbs);\
+        }\
         }
 #define RUN(name, procedure) \
     BEST_TIME(/**/, procedure(), name, repeat, size);\
