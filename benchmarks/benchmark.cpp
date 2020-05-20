@@ -58,7 +58,6 @@ public:
     void run(RandomUTF16& generator, size_t repeat) {
 
         const auto UTF16 = generator.generate(size);
-        size_t codepoints = UTF16.size();
         size_t volume = UTF16.size() * sizeof(UTF16[0]);
 
 
@@ -89,10 +88,10 @@ public:
           all << allocate_count;\
         }\
         double freq = (all.best.cycles() / all.best.elapsed_sec()) / 1000000000.0;\
-        double insperunit = all.best.instructions() / double(codepoints);\
+        double insperunit = all.best.instructions() / double(volume);\
         double gbs = double(volume) / all.best.elapsed_ns();\
         if(collector.has_events()) {\
-         printf("                               %8.3f ins/codepoint, %8.3f GHz, %8.3f GB/s \n", insperunit, freq, gbs);\
+         printf("                               %8.3f ins/byte, %8.3f GHz, %8.3f GB/s \n", insperunit, freq, gbs);\
         } else {\
          printf("                               %8.3f GB/s \n", gbs);\
         }\
@@ -133,7 +132,6 @@ public:
     void run_from_utf8(RandomUTF8& generator, size_t repeat) {
 
         const auto UTF8 = generator.generate(size);
-        size_t codepoints = UTF8.size();
         size_t volume = UTF8.size() * sizeof(UTF8[0]);
 
 
