@@ -7,6 +7,7 @@ Conversion from UTF16 into UTF8
 
 To do
 ------
+* We should be concerned with the branch predictor outsmarting us: we need to test on sizeable inputs and see if results hold up.
 * Benchmark against iconv
 * Up to C++14, the standard library provided means to do unicode conversion
 
