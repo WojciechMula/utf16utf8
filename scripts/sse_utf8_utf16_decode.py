@@ -52,7 +52,7 @@ def buildshuf12_twobytes(sizes):
     for i in range(len(sizes)):
         if(sizes[i] == 1):
             answer[2*i] = pos
-            answer[2*i+1] = 0xFF
+            answer[2*i+1] = 0xff
             pos += 1
         else:
             answer[2*i] = pos + 1
@@ -66,21 +66,21 @@ def buildshuf123_threebytes(sizes):
     for i in range(len(sizes)): # 4 * 4 = 16
         if(sizes[i] == 1):
             answer[4*i] = pos
-            answer[4*i+1] = 0xFF
-            answer[4*i+2] = 0xFF
-            answer[4*i+3] = 0xFF
+            answer[4*i+1] = 0xff
+            answer[4*i+2] = 0xff
+            answer[4*i+3] = 0xff
             pos += 1
         elif(sizes[i] == 2):
             answer[4*i] = pos + 1
             answer[4*i+1] = pos
-            answer[4*i+2] = 0xFF
-            answer[4*i+3] = 0xFF
+            answer[4*i+2] = 0xff
+            answer[4*i+3] = 0xff
             pos += 2
         else: # must be three
             answer[4*i] = pos + 2
             answer[4*i+1] = pos + 1
             answer[4*i+2] = pos
-            answer[4*i+3] = 0xFF            
+            answer[4*i+3] = 0xff         
             pos += 3
     return answer
 

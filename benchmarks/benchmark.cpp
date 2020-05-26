@@ -1,4 +1,3 @@
-#include "benchmark.h"
 #include "sse.h"
 #include "random_utf16.h"
 #include "random_utf8.h"
@@ -97,7 +96,7 @@ public:
         }\
         }
 #define RUN(name, procedure) \
-    BEST_TIME(/**/, procedure(), name, repeat, size);\
+    printf("%-30s\t: ", name); fflush(stdout);\
     RUNINS(procedure)
 
         RUN("scalar", scalar);
