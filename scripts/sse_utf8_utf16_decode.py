@@ -27,15 +27,24 @@ def compute_code_point_size(mask):
         oldx = x
     return answer
 
-## check that we have 8 1-2 byte
+## check that we have 6 1-2 byte (at least)
 def easy_case12(code_point_size):
     if(len(code_point_size)<6):
         return False
     return max(code_point_size[:6])<=2
 
+## check that we have 4 1-2-3 byte (at least)
+def easy_case12(code_point_size):
+    if(len(code_point_size)<4):
+        return False
+    return max(code_point_size[:4])<=3
+
 
 def grab_easy_case12_code_point_size(code_point_size):
     return code_point_size[:6]
+
+def grab_easy_case123_code_point_size(code_point_size):
+    return code_point_size[:4]
 
 def buildshuf12_twobytes(sizes):
     answer = [0 for i in range(16)]
@@ -55,9 +64,13 @@ def buildshuf12_twobytes(sizes):
 
 def main12():
   easycase12 = set()
+  easycase123 = set()
   for x in range(1<<12):
     sizes = compute_code_point_size(x)
     if(easy_case12(sizes)):
+        z1 = grab_easy_case12_code_point_size(sizes)
+        easycase12.add(tuple(z1))
+    elif(easy_case123(sizes)):
         z1 = grab_easy_case12_code_point_size(sizes)
         easycase12.add(tuple(z1))
   easycase12sorted = [x for x in easycase12]

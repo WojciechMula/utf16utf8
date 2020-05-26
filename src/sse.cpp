@@ -575,7 +575,7 @@ size_t sse_convert_valid_utf8_to_utf16_lemire(const uint8_t* input, size_t size,
     // 
     // Otherwise, we use an approach where we try to process up to 12 input bytes.
     // Why 12 input bytes and not 16? Because we are concerned with the size of the lookup tables.
-    // Also 12 is nicely divisible by two, three and four.
+    // Also 12 is nicely divisible by two and three.
     //
     const __m128i maxtwobyte = _mm_set1_epi8(uint8_t(0xdf));
     uint16_t istwobytes = uint16_t(_mm_movemask_epi8(_mm_cmpeq_epi8(_mm_max_epu8(maxtwobyte, in), maxtwobyte)));
