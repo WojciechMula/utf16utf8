@@ -158,7 +158,10 @@ public:
 
 int main() {
     // todo: Daniel finds the endless stream of numbers too much
-    std::vector<size_t> input_size{4096};//256 , 512, 1024, 2048, 4096};
+    // Because some schemes use branching, you need to have a sizeable input if you
+    // want fair results, given that we repeat the tests many times (we need to account
+    // for branch predictors learning the branches).
+    std::vector<size_t> input_size{16384};
     for (const size_t size: input_size) {
         Benchmark bench(size);
         bench.run();
