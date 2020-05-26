@@ -115,6 +115,7 @@ public:
         RandomUTF8 gen_2bytes(rd, 0, 1, 0, 0);
         RandomUTF8 gen_3bytes(rd, 0, 0, 1, 0);
         RandomUTF8 gen_1_2(rd, 1, 1, 0, 0);
+        RandomUTF8 gen_1_2_3(rd, 1, 1, 1, 0);
         
         printf("Input size: (UTF8) %lu\n", size);
 
@@ -130,6 +131,9 @@ public:
 
         puts("- Output 1 or 2 UTF8 bytes");
         run_from_utf8(gen_1_2, repeat);
+
+        puts("- Output 1 or 2 or 3 UTF8 bytes");
+        run_from_utf8(gen_1_2_3, repeat);
 
     }
 
