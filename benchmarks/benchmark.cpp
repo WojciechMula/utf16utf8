@@ -13,7 +13,7 @@ class Benchmark {
 public:
     Benchmark(const size_t tsize) : size(tsize) {}
 
-    void run() {
+    void run_from_utf16() {
         printf("\n");
         printf("Running UTF16 => UTF8 benchmark.\n");
         printf("The speed is normalized by the number of input bytes.\n");
@@ -30,13 +30,13 @@ public:
         printf("Input size: (UTF16) %lu\n", size);
 
         puts("- Output ASCII characters");
-        run(gen_1byte, repeat);
+        run_from_utf16(gen_1byte, repeat);
 
         puts("- Output exactly 2 UTF8 bytes");
-        run(gen_2bytes, repeat);
+        run_from_utf16(gen_2bytes, repeat);
 
         puts("- Output exactly 3 UTF8 bytes");
-        run(gen_3bytes, repeat);
+        run_from_utf16(gen_3bytes, repeat);
 
         //puts("- Output exactly 4 UTF8 bytes");
         // Given that we do not optimize this case at
@@ -44,10 +44,10 @@ public:
         //run(gen_4bytes, repeat);
 
         puts("- Output 1 or 2 UTF8 bytes");
-        run(gen_1_2, repeat);
+        run_from_utf16(gen_1_2, repeat);
 
         puts("- Output 1, 2 or 3 UTF8 bytes");
-        run(gen_1_2_3, repeat);
+        run_from_utf16(gen_1_2_3, repeat);
 
         // Results from this benchmark appear bogus: SSE is too fast!!!
         //puts("- Output 1, 2, 3 or 4 UTF8 bytes");
@@ -55,7 +55,7 @@ public:
     }
 
 
-    void run(RandomUTF16& generator, size_t repeat) {
+    void run_from_utf16(RandomUTF16& generator, size_t repeat) {
 
         const auto UTF16 = generator.generate(size);
         size_t volume = UTF16.size() * sizeof(UTF16[0]);
@@ -113,8 +113,9 @@ public:
         const size_t repeat = 10000;
         RandomUTF8 gen_1byte (rd, 1, 0, 0, 0);
         RandomUTF8 gen_2bytes(rd, 0, 1, 0, 0);
+        RandomUTF8 gen_3bytes(rd, 0, 0, 1, 0);
         RandomUTF8 gen_1_2(rd, 1, 1, 0, 0);
-
+        
         printf("Input size: (UTF8) %lu\n", size);
 
         puts("- Output ASCII characters");
@@ -122,6 +123,10 @@ public:
 
         puts("- Output exactly 2 UTF8 bytes");
         run_from_utf8(gen_2bytes, repeat);
+
+        puts("- Output exactly 3 UTF8 bytes");
+        run_from_utf8(gen_3bytes, repeat);
+
 
         puts("- Output 1 or 2 UTF8 bytes");
         run_from_utf8(gen_1_2, repeat);
@@ -164,7 +169,7 @@ int main() {
     std::vector<size_t> input_size{16384};
     for (const size_t size: input_size) {
         Benchmark bench(size);
-        bench.run();
         bench.run_from_utf8();
+        bench.run_from_utf16();
     }
 }

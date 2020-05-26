@@ -186,24 +186,6 @@ bool validate_from_utf8(std::vector<uint8_t>& input) {
     }
     return true;
 }
-bool validate_onetwobytes_from_utf8() {
-    puts("Test transcoding random string from utf8 (one/two bytes)");
-    std::random_device rd{};
-    RandomUTF8 generator(rd,
-        /* 1 byte */  1,
-        /* 2 bytes */ 1, 
-        /* 3 bytes */ 0,
-        /* 4 bytes */ 0
-    );
-    for(size_t t = 0; t < 10000; t++) {
-      auto UTF8 = generator.generate(16);
-      if(!validate_from_utf8(UTF8)) {
-          return false;
-      }
-    }
-    return true;
-}
-
 
 bool validate_no_surrogates_from_utf8() {
     puts("Test transcoding random string from utf8 (without surrogates)");
@@ -215,7 +197,7 @@ bool validate_no_surrogates_from_utf8() {
         /* 4 bytes */ 0
     );
     for(size_t t = 0; t < 10000; t++) {
-      auto UTF8 = generator.generate(16);
+      auto UTF8 = generator.generate(512);
       if(!validate_from_utf8(UTF8)) {
           return false;
       }
@@ -224,7 +206,7 @@ bool validate_no_surrogates_from_utf8() {
 }
 int main() {
 
-    if(!validate_onetwobytes_from_utf8())
+    if(!validate_no_surrogates_from_utf8())
         return EXIT_FAILURE;
 
     if (!validate_all())

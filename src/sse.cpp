@@ -8,7 +8,7 @@
 #include "sse_16bit_lookup.cpp"
 #include "sse_32bit_lookup.cpp"
 //#include "sse_utf8_to_utf16.cpp"
-#include "sse_utf8_decoder_twobytes.cpp"
+#include "sse_utf8_decoder.cpp"
 #include "reference.h"
 
 namespace nonstd {
@@ -577,8 +577,8 @@ size_t sse_convert_valid_utf8_to_utf16_lemire(const uint8_t* input, size_t size,
     // Why 12 input bytes and not 16? Because we are concerned with the size of the lookup tables.
     // Also 12 is nicely divisible by two and three.
     //
-    const __m128i maxtwobyte = _mm_set1_epi8(uint8_t(0xdf));
-    uint16_t istwobytes = uint16_t(_mm_movemask_epi8(_mm_cmpeq_epi8(_mm_max_epu8(maxtwobyte, in), maxtwobyte)));
+    //const __m128i maxtwobyte = _mm_set1_epi8(uint8_t(0xdf));
+    //uint16_t istwobytes = uint16_t(_mm_movemask_epi8(_mm_cmpeq_epi8(_mm_max_epu8(maxtwobyte, in), maxtwobyte)));
     // The most significant 4 bits (high nibble) can be used to classify the bytes, as
     // to whether they start a new code point.
     const __m128i hn = _mm_set1_epi8(uint8_t(0xF));
@@ -593,19 +593,18 @@ size_t sse_convert_valid_utf8_to_utf16_lemire(const uint8_t* input, size_t size,
     ///////////
     const uint16_t end_of_code_point = uint16_t((start_of_code_point >> 1) | (! non_ascii_chars));
     const uint16_t twelvebits_mask = 0xFFF;
-    uint16_t twelvebits_end_of_code_point = end_of_code_point&twelvebits_mask;
+    const uint16_t twelvebits_end_of_code_point = end_of_code_point&twelvebits_mask;
+    const uint8_t idx = utf8bigindex[twelvebits_end_of_code_point][0];
+    const uint8_t consumed = utf8bigindex[twelvebits_end_of_code_point][1];
     //
     // Let us first try to see if we are in the easy two-byte scenario
     //
-    if((istwobytes & twelvebits_mask) == twelvebits_mask) {
+    if(idx < 64) {
         // this is a relatively easy scenario
         // we process SIX (6) input code-words. The max length in bytes of six code words
         // spanning between 1 and 2 bytes each is 12 bytes.
         // On processors where pdep/pext is fast, we might be able to use a small lookup table.
-        uint8_t idx = utf8twobytesbigindex[twelvebits_end_of_code_point][0];
-        uint8_t consumed = utf8twobytesbigindex[twelvebits_end_of_code_point][1];
-        assert(consumed > 0);
-        const __m128i sh = _mm_loadu_si128((const __m128i *)shufutf8twobytes[idx]);
+        const __m128i sh = _mm_loadu_si128((const __m128i *)shufutf8[idx]);
         const __m128i perm = _mm_shuffle_epi8(in, sh);
         const __m128i ascii = _mm_and_si128(perm,_mm_set1_epi16(0x7f));
         const __m128i highbyte = _mm_and_si128(perm,_mm_set1_epi16(0x1f00));
@@ -613,14 +612,19 @@ size_t sse_convert_valid_utf8_to_utf16_lemire(const uint8_t* input, size_t size,
         _mm_storeu_si128((__m128i*)output, composed);
         output += 6;
         pos += consumed;
-    } else {
-        const __m128i maxthreebyte = _mm_set1_epi8(uint8_t(0xef));
-        uint16_t isthreebytes = uint16_t(_mm_movemask_epi8(_mm_cmpeq_epi8(_mm_max_epu8(maxthreebyte, in), maxthreebyte)));
-        if((isthreebytes & twelvebits_mask) == twelvebits_mask) {
-            // We want to process FOUR (4) input code-words. The max length in bytes of
-            // four input code points spanning between 1 to 3 bytes each is twelve.
-        }
-
+    } else if (idx < 145) {
+        const __m128i sh = _mm_loadu_si128((const __m128i *)shufutf8[idx]);
+        const __m128i perm = _mm_shuffle_epi8(in, sh);
+        const __m128i ascii = _mm_and_si128(perm,_mm_set1_epi32(0x7f));
+        const __m128i middlebyte = _mm_and_si128(perm,_mm_set1_epi32(0x3f00));
+        const __m128i middlebyte_shifted = _mm_srli_epi32(middlebyte,2);
+        const __m128i highbyte = _mm_and_si128(perm,_mm_set1_epi32(0x0f0000));
+        const __m128i highbyte_shifted = _mm_srli_epi32(highbyte,4);
+        const __m128i composed = _mm_or_si128(_mm_or_si128(ascii,middlebyte_shifted),highbyte_shifted);
+        const __m128i composed_repacked = _mm_packus_epi32(composed,composed);
+        _mm_storeu_si128((__m128i*)output,  composed_repacked);
+        output += 4;
+        pos += consumed;
     }
   }
   size_t len = strlen_utf8_to_utf16_with_length(input + pos, size - pos);

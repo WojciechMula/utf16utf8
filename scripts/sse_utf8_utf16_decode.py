@@ -34,7 +34,7 @@ def easy_case12(code_point_size):
     return max(code_point_size[:6])<=2
 
 ## check that we have 4 1-2-3 byte (at least)
-def easy_case12(code_point_size):
+def easy_case123(code_point_size):
     if(len(code_point_size)<4):
         return False
     return max(code_point_size[:4])<=3
@@ -60,9 +60,31 @@ def buildshuf12_twobytes(sizes):
             pos += 2
     return answer
 
+def buildshuf123_threebytes(sizes):
+    answer = [0 for i in range(16)]
+    pos = 0
+    for i in range(len(sizes)): # 4 * 4 = 16
+        if(sizes[i] == 1):
+            answer[4*i] = pos
+            answer[4*i+1] = 0xFF
+            answer[4*i+2] = 0xFF
+            answer[4*i+3] = 0xFF
+            pos += 1
+        elif(sizes[i] == 2):
+            answer[4*i] = pos + 1
+            answer[4*i+1] = pos
+            answer[4*i+2] = 0xFF
+            answer[4*i+3] = 0xFF
+            pos += 2
+        else: # must be three
+            answer[4*i] = pos + 2
+            answer[4*i+1] = pos + 1
+            answer[4*i+2] = pos
+            answer[4*i+3] = 0xFF            
+            pos += 3
+    return answer
 
-
-def main12():
+def main():
   easycase12 = set()
   easycase123 = set()
   for x in range(1<<12):
@@ -71,16 +93,21 @@ def main12():
         z1 = grab_easy_case12_code_point_size(sizes)
         easycase12.add(tuple(z1))
     elif(easy_case123(sizes)):
-        z1 = grab_easy_case12_code_point_size(sizes)
-        easycase12.add(tuple(z1))
+        z1 = grab_easy_case123_code_point_size(sizes)
+        easycase123.add(tuple(z1))
   easycase12sorted = [x for x in easycase12]
   easycase12sorted.sort()
+  easycase123sorted = [x for x in easycase123]
+  easycase123sorted.sort()
   print("#include <cstdint>")
-  print("const uint8_t shufutf8twobytes["+str(len(easycase12sorted))+"][16] = ")
-  print(cpp_arrayarray_initializer([buildshuf12_twobytes(z) for z in  easycase12sorted]), end=";\n")
+  allshuf = [buildshuf12_twobytes(z) for z in  easycase12sorted] + [buildshuf123_threebytes(z) for z in  easycase123sorted]
+  print("const uint8_t shufutf8["+str(len(easycase12sorted+easycase123sorted))+"][16] = ")
+  print(cpp_arrayarray_initializer(allshuf), end=";\n")
+  print("/* number of two bytes : "+ str(len(easycase12sorted))+ " */")
+  print("/* number of two + three bytes : "+ str(len(easycase12sorted+easycase123sorted))+ " */")
   c = 0
   index = {}
-  for t in easycase12sorted:
+  for t in easycase12sorted + easycase123sorted:
       index[t] = c
       c = c + 1
   arrg=[]
@@ -91,10 +118,15 @@ def main12():
         idx = index[tuple(z1)]
         s = sum(z1)
         arrg.append((idx,s))
+    elif(easy_case123(sizes)):
+        z1 = grab_easy_case123_code_point_size(sizes)
+        idx = index[tuple(z1)]
+        s = sum(z1)
+        arrg.append((idx,s))
     else:
-        arrg.append((0,0))
-  print("const uint8_t utf8twobytesbigindex["+str(len(arrg))+"][2] = ")
+        arrg.append((c,0))
+  print("const uint8_t utf8bigindex["+str(len(arrg))+"][2] = ")
   print(cpp_arrayarray_initializer(arrg), end=";\n")
 
 if __name__ == '__main__':
-    main12()
+    main()
