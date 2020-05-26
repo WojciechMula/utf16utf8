@@ -572,6 +572,11 @@ size_t sse_convert_valid_utf8_to_utf16_lemire(const uint8_t* input, size_t size,
         pos += 16;
         continue;
     }
+    // 
+    // Otherwise, we use an approach where we try to process up to 12 input bytes.
+    // Why 12 input bytes and not 16? Because we are concerned with the size of the lookup tables.
+    // Also 12 is nicely divisible by two, three and four.
+    //
     const __m128i maxtwobyte = _mm_set1_epi8(uint8_t(0xdf));
     uint16_t istwobytes = uint16_t(_mm_movemask_epi8(_mm_cmpeq_epi8(_mm_max_epu8(maxtwobyte, in), maxtwobyte)));
     // The most significant 4 bits (high nibble) can be used to classify the bytes, as
@@ -588,9 +593,15 @@ size_t sse_convert_valid_utf8_to_utf16_lemire(const uint8_t* input, size_t size,
     ///////////
     const uint16_t end_of_code_point = uint16_t((start_of_code_point >> 1) | (! non_ascii_chars));
     const uint16_t twelvebits_mask = 0xFFF;
+    uint16_t twelvebits_end_of_code_point = end_of_code_point&twelvebits_mask;
+    //
+    // Let us first try to see if we are in the easy two-byte scenario
+    //
     if((istwobytes & twelvebits_mask) == twelvebits_mask) {
         // this is a relatively easy scenario
-        uint16_t twelvebits_end_of_code_point = end_of_code_point&twelvebits_mask;
+        // we process SIX (6) input code-words. The max length in bytes of six code words
+        // spanning between 1 and 2 bytes each is 12 bytes.
+        // On processors where pdep/pext is fast, we might be able to use a small lookup table.
         uint8_t idx = utf8twobytesbigindex[twelvebits_end_of_code_point][0];
         uint8_t consumed = utf8twobytesbigindex[twelvebits_end_of_code_point][1];
         assert(consumed > 0);
@@ -602,6 +613,13 @@ size_t sse_convert_valid_utf8_to_utf16_lemire(const uint8_t* input, size_t size,
         _mm_storeu_si128((__m128i*)output, composed);
         output += 6;
         pos += consumed;
+    } else {
+        const __m128i maxthreebyte = _mm_set1_epi8(uint8_t(0xef));
+        uint16_t isthreebytes = uint16_t(_mm_movemask_epi8(_mm_cmpeq_epi8(_mm_max_epu8(maxthreebyte, in), maxthreebyte)));
+        if((isthreebytes & twelvebits_mask) == twelvebits_mask) {
+            // We want to process FOUR (4) input code-words. The max length in bytes of
+            // four input code points spanning between 1 to 3 bytes each is twelve.
+        }
 
     }
   }
