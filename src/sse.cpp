@@ -625,6 +625,21 @@ size_t sse_convert_valid_utf8_to_utf16_lemire(const uint8_t* input, size_t size,
         _mm_storeu_si128((__m128i*)output,  composed_repacked);
         output += 4;
         pos += consumed;
+    } else if(idx < 209) {
+        const __m128i sh = _mm_loadu_si128((const __m128i *)shufutf8[idx]);
+        const __m128i perm = _mm_shuffle_epi8(in, sh);
+        const __m128i ascii = _mm_and_si128(perm,_mm_set1_epi32(0x7f)); 
+        const __m128i middlebyte = _mm_and_si128(perm,_mm_set1_epi32(0x3f00));
+        const __m128i middlebyte_shifted = _mm_srli_epi32(middlebyte,2);
+        const __m128i middlehighbyte = _mm_and_si128(perm,_mm_set1_epi32(0x3f0000));
+        const __m128i middlehighbyte_shifted = _mm_srli_epi32(middlehighbyte,4);
+        const __m128i highbyte = _mm_and_si128(perm,_mm_set1_epi32(0x03000000));
+        const __m128i highbyte_shifted = _mm_srli_epi32(highbyte,6);
+        const __m128i composed = _mm_or_si128(_mm_or_si128(ascii,middlebyte_shifted),_mm_or_si128(highbyte_shifted,middlehighbyte_shifted));
+        const __m128i composed_repacked = _mm_packus_epi32(composed,composed);
+        _mm_storeu_si128((__m128i*)output,  composed_repacked);
+        output += 3;
+        pos += consumed;        
     }
   }
   size_t len = strlen_utf8_to_utf16_with_length(input + pos, size - pos);
