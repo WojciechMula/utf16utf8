@@ -547,7 +547,7 @@ size_t sse_convert_utf16_to_utf8_hybrid(const uint16_t *input, size_t size,
 
     }
 } */
-
+#include <stdio.h>
 
 size_t sse_convert_valid_utf8_to_utf16_lemire(const uint8_t* input, size_t size, uint16_t* output) {
   size_t pos = 0;
@@ -615,16 +615,54 @@ size_t sse_convert_valid_utf8_to_utf16_lemire(const uint8_t* input, size_t size,
     } else if (idx < 145) {
         const __m128i sh = _mm_loadu_si128((const __m128i *)shufutf8[idx]);
         const __m128i perm = _mm_shuffle_epi8(in, sh);
-        const __m128i ascii = _mm_and_si128(perm,_mm_set1_epi32(0x7f));
-        const __m128i middlebyte = _mm_and_si128(perm,_mm_set1_epi32(0x3f00));
+        const __m128i ascii = _mm_and_si128(perm,_mm_set1_epi32(0x7f)); // 7 or 6 bits
+        const __m128i middlebyte = _mm_and_si128(perm,_mm_set1_epi32(0x3f00)); // 5 or 6 bits
         const __m128i middlebyte_shifted = _mm_srli_epi32(middlebyte,2);
-        const __m128i highbyte = _mm_and_si128(perm,_mm_set1_epi32(0x0f0000));
+        const __m128i highbyte = _mm_and_si128(perm,_mm_set1_epi32(0x0f0000)); // 4 bits
         const __m128i highbyte_shifted = _mm_srli_epi32(highbyte,4);
         const __m128i composed = _mm_or_si128(_mm_or_si128(ascii,middlebyte_shifted),highbyte_shifted);
         const __m128i composed_repacked = _mm_packus_epi32(composed,composed);
         _mm_storeu_si128((__m128i*)output,  composed_repacked);
         output += 4;
         pos += consumed;
+    } else if(idx < 209) {
+        const __m128i sh = _mm_loadu_si128((const __m128i *)shufutf8[idx]);
+        const __m128i perm = _mm_shuffle_epi8(in, sh);
+        const __m128i ascii = _mm_and_si128(perm,_mm_set1_epi32(0x7f)); 
+        const __m128i middlebyte = _mm_and_si128(perm,_mm_set1_epi32(0x3f00));
+        const __m128i middlebyte_shifted = _mm_srli_epi32(middlebyte,2);
+        __m128i middlehighbyte = _mm_and_si128(perm,_mm_set1_epi32(0x3f0000));//_mm_xor_si128(_mm_and_si128(perm,_mm_set1_epi32(0x3f0000)), );
+        // correct for spurious high bit
+        const __m128i correct = _mm_srli_epi32(_mm_and_si128(perm,_mm_set1_epi32(0x400000)),1);
+        middlehighbyte = _mm_xor_si128(correct, middlehighbyte);
+        const __m128i middlehighbyte_shifted = _mm_srli_epi32(middlehighbyte,4);
+        const __m128i highbyte = _mm_and_si128(perm,_mm_set1_epi32(0x07000000));
+        const __m128i highbyte_shifted = _mm_srli_epi32(highbyte,6);
+        const __m128i composed = _mm_or_si128(_mm_or_si128(ascii,middlebyte_shifted),_mm_or_si128(highbyte_shifted,middlehighbyte_shifted));
+        const __m128i composedminus = _mm_sub_epi32(composed,_mm_set1_epi32(0x10000));
+        const __m128i lowtenbits = _mm_and_si128(composedminus,_mm_set1_epi32(0x3ff));
+        const __m128i hightenbits = _mm_srli_epi32(composedminus,10);
+        const __m128i lowtenbitsadd = _mm_add_epi32(lowtenbits,_mm_set1_epi32(0xDC00));
+        const __m128i hightenbitsadd = _mm_add_epi32(hightenbits,_mm_set1_epi32(0xD800));
+        const __m128i lowtenbitsaddshifted = _mm_slli_epi32(lowtenbitsadd,16);
+        const __m128i surrogates = _mm_or_si128(hightenbitsadd,lowtenbitsaddshifted);
+        uint32_t basic_buffer[4];
+        _mm_storeu_si128((__m128i*)basic_buffer,  composed);
+        uint32_t surrogate_buffer[4];
+        _mm_storeu_si128((__m128i*)surrogate_buffer,  surrogates);
+        for(size_t i = 0; i < 3; i++) {
+            if(basic_buffer[i]<65536) {
+                *output = uint16_t(basic_buffer[i]);
+                output++;
+            } else {
+                output[0] = uint16_t(surrogate_buffer[i] &0xFFFF);
+                output[1] = uint16_t(surrogate_buffer[i] >> 16);
+                output += 2;
+            }
+        }
+        pos += consumed;        
+    } else {
+        // here we know that there is an error???
     }
   }
   size_t len = strlen_utf8_to_utf16_with_length(input + pos, size - pos);
@@ -632,4 +670,3 @@ size_t sse_convert_valid_utf8_to_utf16_lemire(const uint8_t* input, size_t size,
   output += len;
   return output - start;
 }
-

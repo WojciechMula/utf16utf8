@@ -1,4 +1,5 @@
 #include "random_utf8.h"
+#include <iostream>
 
 RandomUTF8::RandomUTF8(std::random_device& rd, int prob_1byte, int prob_2bytes, int prob_3bytes, int prob_4bytes)
     : gen(rd())
@@ -10,7 +11,8 @@ std::vector<uint8_t> RandomUTF8::generate(size_t output_bytes)
     result.reserve(output_bytes);
     uint8_t candidate, head;
     while (result.size() < output_bytes) {
-        switch (bytes_count(gen)) {
+        auto b = bytes_count(gen);
+        switch (b) {
             case 0: // 1 byte
                 candidate = val_7bit(gen);
                 while(candidate == 0) {// though strictly speaking, a stream of nulls is UTF8, it tends to break some code
