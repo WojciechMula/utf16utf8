@@ -113,27 +113,34 @@ public:
         RandomUTF8 gen_1byte (rd, 1, 0, 0, 0);
         RandomUTF8 gen_2bytes(rd, 0, 1, 0, 0);
         RandomUTF8 gen_3bytes(rd, 0, 0, 1, 0);
+        RandomUTF8 gen_4bytes(rd, 0, 0, 0, 1);
+
         RandomUTF8 gen_1_2(rd, 1, 1, 0, 0);
         RandomUTF8 gen_1_2_3(rd, 1, 1, 1, 0);
-        
+        RandomUTF8 gen_1_2_3_4(rd, 1, 1, 1, 1);
+
         printf("Input size: (UTF8) %lu\n", size);
 
-        puts("- Output ASCII characters");
+        puts("- Input ASCII characters");
         run_from_utf8(gen_1byte, repeat);
 
-        puts("- Output exactly 2 UTF8 bytes");
+        puts("- Input exactly 2 UTF8 bytes");
         run_from_utf8(gen_2bytes, repeat);
 
-        puts("- Output exactly 3 UTF8 bytes");
+        puts("- Input exactly 3 UTF8 bytes");
         run_from_utf8(gen_3bytes, repeat);
 
+        puts("- Input exactly 4 UTF8 bytes");
+        run_from_utf8(gen_3bytes, repeat);
 
-        puts("- Output 1 or 2 UTF8 bytes");
+        puts("- Input 1 or 2 UTF8 bytes");
         run_from_utf8(gen_1_2, repeat);
 
-        puts("- Output 1 or 2 or 3 UTF8 bytes");
+        puts("- Input 1 or 2 or 3 UTF8 bytes");
         run_from_utf8(gen_1_2_3, repeat);
 
+        puts("- Input 1 or 2 or 3 or 4 UTF8 bytes");
+        run_from_utf8(gen_1_2_3_4, repeat);
     }
 
 
@@ -141,7 +148,6 @@ public:
 
         const auto UTF8 = generator.generate(size);
         size_t volume = UTF8.size() * sizeof(UTF8[0]);
-
 
 
         std::vector<uint16_t> scalar_out;

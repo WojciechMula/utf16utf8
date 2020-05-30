@@ -214,9 +214,8 @@ bool validate_with_surrogates_from_utf8() {
         /* 3 bytes */ 1,
         /* 4 bytes */ 1
     );
-    for(size_t t = 0; t < 10000000; t++) {
-      auto UTF8 = generator.generate(16);
-    //std::vector<uint8_t> UTF8={242, 169,  146,  160,  241,  143,  168,  151,  241,  177,  145,  141,  243,  179,  144,  186,  0};
+    for(size_t t = 0; t < 10000; t++) {
+      auto UTF8 = generator.generate(512);
       if(!validate_from_utf8(UTF8)) {
           return false;
       }
@@ -225,8 +224,8 @@ bool validate_with_surrogates_from_utf8() {
 }
 int main() {
 
-    //if(!validate_no_surrogates_from_utf8())
-      ///  return EXIT_FAILURE;
+    if(!validate_no_surrogates_from_utf8())
+        return EXIT_FAILURE;
 
     if(!validate_with_surrogates_from_utf8())
         return EXIT_FAILURE;

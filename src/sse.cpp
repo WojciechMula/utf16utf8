@@ -626,38 +626,17 @@ size_t sse_convert_valid_utf8_to_utf16_lemire(const uint8_t* input, size_t size,
         output += 4;
         pos += consumed;
     } else if(idx < 209) {
-        printf("input:");for(size_t i = 0; i < 16; i++) printf("%x ", input[pos+i]); printf("\n");
         const __m128i sh = _mm_loadu_si128((const __m128i *)shufutf8[idx]);
-                printf("suft:");for(size_t i = 0; i < 16; i++) printf("%x ", shufutf8[idx][i]); printf("\n");
-
         const __m128i perm = _mm_shuffle_epi8(in, sh);
-                uint8_t p[16];
-        _mm_storeu_si128((__m128i*)p,  perm);
-                printf("perm:");for(size_t i = 0; i < 16; i++) printf("%x ", p[i]); printf("\n");
-                uint32_t p32[4];
-        _mm_storeu_si128((__m128i*)p32,  perm);
-                printf("perm (32):");for(size_t i = 0; i < 4; i++) printf("%x ", p32[i]); printf("\n");
-
         const __m128i ascii = _mm_and_si128(perm,_mm_set1_epi32(0x7f)); 
         const __m128i middlebyte = _mm_and_si128(perm,_mm_set1_epi32(0x3f00));
         const __m128i middlebyte_shifted = _mm_srli_epi32(middlebyte,2);
         __m128i middlehighbyte = _mm_and_si128(perm,_mm_set1_epi32(0x3f0000));//_mm_xor_si128(_mm_and_si128(perm,_mm_set1_epi32(0x3f0000)), );
         // correct for spurious high bit
         const __m128i correct = _mm_srli_epi32(_mm_and_si128(perm,_mm_set1_epi32(0x400000)),1);
-
         middlehighbyte = _mm_xor_si128(correct, middlehighbyte);
-
-//        const __m128i correction = ;
-
         const __m128i middlehighbyte_shifted = _mm_srli_epi32(middlehighbyte,4);
-
-
-        const __m128i  shit = _mm_set1_epi32(0x07000000);
-                        _mm_storeu_si128((__m128i*)p32,  shit);
-                printf("mask:");for(size_t i = 0; i < 4; i++) printf("%x ", p32[i]); printf("\n");
         const __m128i highbyte = _mm_and_si128(perm,_mm_set1_epi32(0x07000000));
-                _mm_storeu_si128((__m128i*)p32,  highbyte);
-                printf("highbyte:");for(size_t i = 0; i < 4; i++) printf("%x ", p32[i]); printf("\n");
         const __m128i highbyte_shifted = _mm_srli_epi32(highbyte,6);
         const __m128i composed = _mm_or_si128(_mm_or_si128(ascii,middlebyte_shifted),_mm_or_si128(highbyte_shifted,middlehighbyte_shifted));
         const __m128i composedminus = _mm_sub_epi32(composed,_mm_set1_epi32(0x10000));
@@ -671,26 +650,16 @@ size_t sse_convert_valid_utf8_to_utf16_lemire(const uint8_t* input, size_t size,
         _mm_storeu_si128((__m128i*)basic_buffer,  composed);
         uint32_t surrogate_buffer[4];
         _mm_storeu_si128((__m128i*)surrogate_buffer,  surrogates);
-        
         for(size_t i = 0; i < 3; i++) {
-            printf("word at index %zu value is %zu \n",i,basic_buffer[i] );
             if(basic_buffer[i]<65536) {
-            printf("outputting just one 16-bit word %x \n",uint16_t(basic_buffer[i]));                
                 *output = uint16_t(basic_buffer[i]);
                 output++;
             } else {
-            printf("got a surrogate pair %x %x  %x \n",uint16_t(surrogate_buffer[i] &0xFFFF), uint16_t(surrogate_buffer[i] >> 16),surrogate_buffer[i]);                
-
                 output[0] = uint16_t(surrogate_buffer[i] &0xFFFF);
                 output[1] = uint16_t(surrogate_buffer[i] >> 16);
                 output += 2;
             }
-
         }
-
-        //_mm_storeu_si128((__m128i*)output,  finalpackage);
-        printf("output:");for(size_t i = 0; i < 16; i++) printf("%x ", output[i]); printf("\n");
-      //  output += 3*2;
         pos += consumed;        
     } else {
         // here we know that there is an error???

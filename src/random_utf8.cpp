@@ -12,7 +12,6 @@ std::vector<uint8_t> RandomUTF8::generate(size_t output_bytes)
     uint8_t candidate, head;
     while (result.size() < output_bytes) {
         auto b = bytes_count(gen);
-        std::cout <<  b << std::endl;
         switch (b) {
             case 0: // 1 byte
                 candidate = val_7bit(gen);
