@@ -42,7 +42,7 @@ bool compare_strings(const std::string& reference, const std::string& result) {
 template <class T>
 void display(const std::vector<T>& input) {
     for(size_t i = 0; i < input.size(); i++) {
-        std::cout << (unsigned) input[i] << " ";
+        std::cout  << "0x"  << std::hex << (unsigned) input[i] << " ";
     }
     std::cout << "\n";
 
@@ -204,9 +204,31 @@ bool validate_no_surrogates_from_utf8() {
     }
     return true;
 }
+
+bool validate_with_surrogates_from_utf8() {
+    puts("Test transcoding random string from utf8 (with surrogates)");
+    std::random_device rd{};
+    RandomUTF8 generator(rd,
+        /* 1 byte */  1,
+        /* 2 bytes */ 1,
+        /* 3 bytes */ 1,
+        /* 4 bytes */ 1
+    );
+    for(size_t t = 0; t < 10000000; t++) {
+      auto UTF8 = generator.generate(16);
+    //std::vector<uint8_t> UTF8={242, 169,  146,  160,  241,  143,  168,  151,  241,  177,  145,  141,  243,  179,  144,  186,  0};
+      if(!validate_from_utf8(UTF8)) {
+          return false;
+      }
+    }
+    return true;
+}
 int main() {
 
-    if(!validate_no_surrogates_from_utf8())
+    //if(!validate_no_surrogates_from_utf8())
+      ///  return EXIT_FAILURE;
+
+    if(!validate_with_surrogates_from_utf8())
         return EXIT_FAILURE;
 
     if (!validate_all())
