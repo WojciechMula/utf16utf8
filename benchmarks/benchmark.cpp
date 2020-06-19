@@ -3,6 +3,7 @@
 #include "random_utf8.h"
 #include "reference.h"
 #include "event_counter.h"
+#include "utf8.h"
 
 class Benchmark {
 
@@ -69,6 +70,11 @@ public:
             utf16_to_utf8(UTF16.data(), (uint8_t*)scalar_out.data());
         };
 
+        auto scalar_utf8lib = [&UTF16, &scalar_out]() {
+            scalar_out.clear();
+            utf8::utf16to8(UTF16.begin(), UTF16.end(), back_inserter(scalar_out));
+        };
+
         auto sse = [&UTF16, &sse_out, size=size]() {
             sse_convert_utf16_to_utf8(UTF16.data(), size, (uint8_t*)sse_out.data());
         };
@@ -100,6 +106,8 @@ public:
     RUNINS(procedure)
 
         RUN("scalar", scalar);
+        RUN("scalar_utf8lib", scalar_utf8lib);
+
         RUN("SSE",    sse);
         RUN("SSEH",   sse_hybrid);
     }
@@ -159,11 +167,17 @@ public:
             utf8_to_utf16(UTF8.data(), scalar_out.data());
         };
 
+        auto scalar_utf8lib = [&UTF8, &scalar_out]() {
+            scalar_out.clear();
+            utf8::utf8to16(UTF8.begin(), UTF8.end(), back_inserter(scalar_out));
+        };
+
         auto sse = [&UTF8, &sse_out, size=size]() {
             sse_convert_valid_utf8_to_utf16_lemire(UTF8.data(), size, sse_out.data());
         };
 
         RUN("scalar", scalar);
+        RUN("scalar_utf8lib", scalar_utf8lib);
         RUN("SSE",    sse);
 
     }
