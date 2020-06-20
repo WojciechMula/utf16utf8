@@ -20,3 +20,9 @@ To do
 * UTF-8 decoder should be able to generate a BOM and support BE/LE
 * (optional) Error Handling
 * Port to NEON, AVX2, AVX-512
+
+
+Link
+----
+
+* SQL Server team says that UTF16<==>UTF8 is costly https://cloudblogs.microsoft.com/sqlserver/2018/12/18/introducing-utf-8-support-in-sql-server-2019-preview/
