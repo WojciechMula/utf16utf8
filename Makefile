@@ -33,4 +33,4 @@ src/sse_utf8_decoder.cpp:scripts/sse_utf8_utf16_decode.py
 	./scripts/sse_utf8_utf16_decode.py > src/sse_utf8_decoder.cpp
 
 clean:
-	rm -f random_utf16.o scalar_utf16.o   sse.o    unittest benchmark 
+	rm -f random_utf16.o random_utf8.o scalar_utf16.o random_utf8.o  sse.o    unittest benchmark
