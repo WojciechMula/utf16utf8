@@ -606,9 +606,14 @@ size_t sse_convert_valid_utf8_to_utf16_lemire(const uint8_t* input, size_t size,
         // On processors where pdep/pext is fast, we might be able to use a small lookup table.
         const __m128i sh = _mm_loadu_si128((const __m128i *)shufutf8[idx]);
         const __m128i perm = _mm_shuffle_epi8(in, sh);
+#if 0
         const __m128i ascii = _mm_and_si128(perm,_mm_set1_epi16(0x7f));
         const __m128i highbyte = _mm_and_si128(perm,_mm_set1_epi16(0x1f00));
         const __m128i composed = _mm_or_si128(ascii,_mm_srli_epi16(highbyte,2));
+#else
+        const __m128i masked = _mm_and_si128(perm, _mm_set1_epi16(0x1f3f)); // 0x3f - always 6 bits
+        const __m128i composed = _mm_maddubs_epi16(masked, _mm_set1_epi16(0x4001));
+#endif
         _mm_storeu_si128((__m128i*)output, composed);
         output += 6;
         pos += consumed;
