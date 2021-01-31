@@ -4,6 +4,7 @@
 #include "reference.h"
 #include "event_counter.h"
 #include "utf8.h"
+#include "pext.h"
 
 class Benchmark {
 
@@ -160,8 +161,10 @@ public:
 
         std::vector<uint16_t> scalar_out;
         std::vector<uint16_t> sse_out;
+        std::vector<uint16_t> pext_out;
         scalar_out.resize(4 * size + 32);
         sse_out.resize(4 * size + 32);
+        pext_out.resize(4 * size + 32);
 
         auto scalar = [&UTF8, &scalar_out]() {
             utf8_to_utf16(UTF8.data(), scalar_out.data());
@@ -176,9 +179,14 @@ public:
             sse_convert_valid_utf8_to_utf16_lemire(UTF8.data(), size, sse_out.data());
         };
 
+        auto pext = [&UTF8, &pext_out, size=size]() {
+            pext_convert_utf8_to_utf16(UTF8.data(), size, pext_out.data());
+        };
+
         RUN("scalar", scalar);
         RUN("scalar_utf8lib", scalar_utf8lib);
         RUN("SSE",    sse);
+        RUN("PEXT",   pext);
 
     }
 
