@@ -17,13 +17,19 @@ size_t pext_convert_utf8_to_utf16(const uint8_t* input, size_t size, uint16_t* o
         }
 
         const auto& entry = pext_lookup[*curr];
-        if (entry.utf8length == 0)
+        if (entry.utf8_length == 0)
+            // wrong leading byte
             abort();
 
         uint32_t value;
         memcpy(&value, input, 4);
         value = __builtin_bswap32(value);
-        value = _pext_u32(value, entry.mask);
+
+        if ((entry.utf8_bits_mask) == entry.utf8_bits_expected)
+            // wrong encoding
+            abort();
+
+        value = _pext_u32(value, entry.pext_mask);
 
         if (value <= 0xffff) {
             *output++ = static_cast<uint16_t>(value);
@@ -34,7 +40,7 @@ size_t pext_convert_utf8_to_utf16(const uint8_t* input, size_t size, uint16_t* o
             return 2;
         }
 
-        curr += entry.utf8length;
+        curr += entry.utf8_length;
     }
     
     // TODO process the tail
