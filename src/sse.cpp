@@ -505,50 +505,6 @@ size_t sse_convert_utf16_to_utf8_hybrid(const uint16_t *input, size_t size,
   return output - start;
 }
 
-// This method asserts that utf8 input is valid
-/*size_t sse_convert_valid_utf8_to_utf16_wmu(const uint8_t* input, size_t size, uint16_t* output) {
-    
-    const uint8_t* end = input + size - 8;
-    const __m128i zero = _mm_setzero_si128();
-
-    while (input < end) {
-        const __m128i in = _mm_loadu_si128((__m128i*)input);
-
-        // 0. gather MSB (7th bits)
-        const uint16_t input_bit7 = uint16_t(_mm_movemask_epi8(in));
-
-        if (input_bit7 == 0) {
-            // fast path: ASCII
-            _mm_storeu_si128((__m128i*)(output + 0), _mm_unpacklo_epi8(in, zero));
-            _mm_storeu_si128((__m128i*)(output + 4), _mm_unpackhi_epi8(in, zero));
-            input += 8;
-            output += 8;
-            continue;
-        }
-
-        // 1. gather 6th bits
-        const uint16_t input_bit6 = uint16_t(_mm_movemask_epi8(_mm_add_epi8(in, in)));
-
-        // 2. now use lower helves of these two masks (input_bit{6,7}) to get proper data
-        const uint16_t index = uint16_t(input_bit7 << 8) | uint16_t(input_bit6 & 0x00ff);
-
-        using namespace utf8_to_utf16;
-        const Parameters& params = parameters[lookup[index]];
-        if (params.char_lengths == (has_1byte_chars | has_2byte_chars)) {
-            // do something
-        } else
-        if (params.char_lengths == (has_1byte_chars | has_2byte_chars | has_3byte_chars)) {
-            // do something else
-        } else {
-            // scalar fallback
-        }
-        
-       
-
-    }
-} */
-#include <stdio.h>
-
 size_t sse_convert_valid_utf8_to_utf16_lemire(const uint8_t* input, size_t size, uint16_t* output) {
   size_t pos = 0;
   uint16_t *start = output;
