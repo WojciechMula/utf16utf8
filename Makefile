@@ -1,6 +1,15 @@
 .PHONY: benchmark
 
-FLAGS=-Wall -Wextra -Wpedantic -std=c++14 -O3 -Wno-overflow -Wfatal-errors -Wsign-compare -Wshadow -Wwrite-strings -Wpointer-arith -Winit-self -Wconversion -Wno-sign-conversion -march=native $(CXXFLAGS)
+WARNINGS=-Wno-overflow \
+         -Wsign-compare \
+         -Wwrite-strings \
+         -Wpointer-arith \
+         -Winit-self \
+         -Wshadow \
+         -Wconversion \
+         -Wno-sign-conversion
+
+FLAGS=-Wall -Wextra -Wpedantic -std=c++14 -O3 -Wfatal-errors -march=native $(WARNINGS) $(CXXFLAGS)
 
 all: unittest benchmark
 
