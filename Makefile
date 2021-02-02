@@ -1,14 +1,24 @@
+.PHONY: benchmark
+
 FLAGS=-Wall -Wextra -Wpedantic -std=c++14 -O3 -Wno-overflow -Wfatal-errors -Wsign-compare -Wshadow -Wwrite-strings -Wpointer-arith -Winit-self -Wconversion -Wno-sign-conversion -march=native $(CXXFLAGS)
 
 all: unittest benchmark
 
 BENCHMARK_OBJ=sse.o random_utf16.o scalar_utf16.o random_utf8.o pext.o
+EXECUTABLES=unittest benchmark_from_utf8 benchmark_from_utf16
 
 unittest: tests/unittest.cpp include/reference.h sse.o random_utf16.o scalar_utf16.o random_utf8.o
 	$(CXX) $(FLAGS) random_utf16.o random_utf8.o scalar_utf16.o sse.o tests/unittest.cpp -o unittest -Iinclude
 
-benchmark: benchmarks/benchmark.h benchmarks/benchmark.cpp $(BENCHMARK_OBJ)
-	$(CXX) $(FLAGS) $(BENCHMARK_OBJ) benchmarks/benchmark.cpp -o benchmark -Iinclude -Ibenchmark  -Idependencies/utf8_v2_3_4/source
+benchmark: benchmark_from_utf8 benchmark_from_utf16
+	./benchmark_from_utf8
+	./benchmark_from_utf16
+
+benchmark_from_utf8: benchmarks/benchmark.h benchmarks/benchmark_from_utf8.cpp $(BENCHMARK_OBJ)
+	$(CXX) $(FLAGS) $(BENCHMARK_OBJ) benchmarks/benchmark_from_utf8.cpp -o benchmark_from_utf8 -Iinclude -Ibenchmarks  -Idependencies/utf8_v2_3_4/source
+
+benchmark_from_utf16: benchmarks/benchmark.h benchmarks/benchmark_from_utf16.cpp $(BENCHMARK_OBJ)
+	$(CXX) $(FLAGS) $(BENCHMARK_OBJ) benchmarks/benchmark_from_utf16.cpp -o benchmark_from_utf16 -Iinclude -Ibenchmarks  -Idependencies/utf8_v2_3_4/source
 
 random_utf16.o: include/random_utf16.h src/random_utf16.cpp
 	$(CXX) $(FLAGS)  -c src/random_utf16.cpp  -Iinclude
@@ -41,4 +51,4 @@ src/pext_utf8_to_utf16.cpp: scripts/pext_utf8_to_utf16.py
 	./scripts/pext_utf8_to_utf16.py $@
 
 clean:
-	rm -f random_utf16.o random_utf8.o scalar_utf16.o random_utf8.o  sse.o    unittest benchmark
+	$(RM) -f $(BENCHMARK_OBJ) $(EXECUTABLES)

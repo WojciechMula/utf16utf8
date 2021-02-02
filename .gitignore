@@ -5,4 +5,5 @@ perf.data
 
 # our executables
 unittest
-benchmark
+benchmark_from_utf8
+benchmark_from_utf16
